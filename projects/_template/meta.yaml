@@ -1,0 +1,30 @@
+# 项目元数据 —— 用于顶层看板（README.md）自动聚合
+# 字段定义见 .kiro/steering/project-conventions.md
+
+code: project-code              # 必填，与目录名一致
+name: 项目中文名                # 必填
+domain: WMS                     # 必填：WMS/ERP/OMS/TMS/SCP
+owner: 姓名                     # 必填，项目负责人
+stakeholders:
+  - 业务: 姓名/职位
+  - 财务: 姓名/职位
+  - IT:   姓名/职位
+
+stage: 调研中                   # 立项中/调研中/设计中/开发中/试点中/已上线/已暂停
+priority: P0                    # P0/P1/P2
+start_date: YYYY-MM-DD
+target_launch: YYYY-MM-DD
+last_update: YYYY-MM-DD
+
+key_metrics:
+  - name: 指标名
+    current: 当前值
+    target: 目标值
+    unit: 单位
+
+risks:
+  - 风险描述
+
+dependencies: []                # 依赖的其他项目代号
+
+tags: []                        # 自由标签

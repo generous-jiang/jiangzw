@@ -1,0 +1,39 @@
+code: erp-master-data
+name: ERP 主数据治理
+domain: ERP
+owner: 江某某
+stakeholders:
+  - 业务: 商品总监 周某
+  - 财务: 财务总监 黄某
+  - IT:   数据架构师 陈某
+
+stage: 调研中
+priority: P0
+start_date: 2026-05-01
+target_launch: 2026-12-31
+last_update: 2026-05-26
+
+key_metrics:
+  - name: 主数据准确率
+    current: 待测
+    target: 99
+    unit: "%"
+  - name: 商品档案完整率
+    current: 76
+    target: 98
+    unit: "%"
+  - name: 主数据维护周期
+    current: 3
+    target: 0.5
+    unit: 天
+
+risks:
+  - 商品分类标准跨部门有分歧
+  - 历史脏数据量级未知，治理工作量待评估
+
+dependencies: []
+
+tags:
+  - 数据治理
+  - 主数据
+  - 跨部门协同

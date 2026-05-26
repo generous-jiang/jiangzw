@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拣货员任务 · 仓储平台化原型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <!-- 顶部导航：模拟 RF 设备样式 -->
+    <div class="max-w-md mx-auto bg-white shadow-lg min-h-screen">
+        <header class="bg-blue-600 text-white px-4 py-3 flex justify-between items-center">
+            <div>
+                <div class="text-xs opacity-80">RF #A03 · 拣货员</div>
+                <div class="font-bold">王小红</div>
+            </div>
+            <div class="text-right text-xs">
+                <div>今日已拣 <span class="text-yellow-300 font-bold text-base">87</span> 单</div>
+                <div>当前人效 <span class="text-yellow-300 font-bold">92</span> 单/h</div>
+            </div>
+        </header>
+
+        <!-- 当前波次卡片 -->
+        <div class="p-4">
+            <div class="bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-lg p-4 shadow-lg">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="text-xs opacity-80">当前波次</div>
+                        <div class="text-2xl font-bold">W2026-0526-103</div>
+                    </div>
+                    <span class="bg-yellow-400 text-yellow-900 text-xs px-2 py-1 rounded font-bold">KA 优先</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mt-4 text-center">
+                    <div>
+                        <div class="text-2xl font-bold">12</div>
+                        <div class="text-xs opacity-80">订单</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold">28</div>
+                        <div class="text-xs opacity-80">SKU</div>
+                    </div>
+                    <div>
+                        <div class="text-2xl font-bold">35</div>
+                        <div class="text-xs opacity-80">预计分钟</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 进度 -->
+        <div class="px-4 mb-3">
+            <div class="flex justify-between text-xs text-gray-600 mb-1">
+                <span>拣货进度</span>
+                <span><span class="font-bold text-blue-600">8</span> / 28 SKU</span>
+            </div>
+            <div class="bg-gray-200 rounded-full h-3 overflow-hidden">
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 h-full" style="width: 28.5%"></div>
+            </div>
+        </div>
+
+        <!-- 当前任务 -->
+        <div class="p-4">
+            <div class="text-sm font-bold text-gray-700 mb-2">⚡ 当前任务</div>
+            <div class="bg-white border-2 border-orange-400 rounded-lg p-4 shadow">
+                <div class="flex justify-between items-center mb-3">
+                    <div class="text-3xl font-bold text-orange-600">A-03-12-2</div>
+                    <div class="text-right text-xs text-gray-500">
+                        <div>距当前 <span class="text-orange-600 font-bold">8</span> 米</div>
+                    </div>
+                </div>
+                <div class="border-t pt-3">
+                    <div class="text-sm text-gray-500">SKU</div>
+                    <div class="font-mono text-base">SKU-298301</div>
+                    <div class="text-sm text-gray-700 mt-1">某品牌 保温杯 500ml 蓝色</div>
+                    <div class="flex justify-between items-center mt-3">
+                        <div>
+                            <div class="text-xs text-gray-500">需拣数量</div>
+                            <div class="text-3xl font-bold text-blue-600">3</div>
+                        </div>
+                        <button class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-bold shadow">
+                            扫码确认
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 后续任务列表 -->
+        <div class="p-4">
+            <div class="text-sm font-bold text-gray-700 mb-2">后续任务（按路径排序）</div>
+            <div class="space-y-2">
+                <div class="bg-white rounded p-3 flex justify-between items-center border">
+                    <div>
+                        <div class="font-mono font-bold">A-03-15-1</div>
+                        <div class="text-xs text-gray-500">SKU-189402 · 数量 2</div>
+                    </div>
+                    <div class="text-xs text-gray-500">下一个</div>
+                </div>
+                <div class="bg-white rounded p-3 flex justify-between items-center border">
+                    <div>
+                        <div class="font-mono font-bold">A-04-02-3</div>
+                        <div class="text-xs text-gray-500">SKU-401122 · 数量 5</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded p-3 flex justify-between items-center border">
+                    <div>
+                        <div class="font-mono font-bold">A-04-08-1</div>
+                        <div class="text-xs text-gray-500">SKU-302891 · 数量 1</div>
+                    </div>
+                </div>
+                <div class="text-center text-xs text-gray-400 py-2">还有 17 个 SKU…</div>
+            </div>
+        </div>
+
+        <!-- 底部操作栏 -->
+        <div class="border-t bg-white px-4 py-3 flex gap-2 sticky bottom-0">
+            <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded text-sm">异常上报</button>
+            <button class="flex-1 bg-gray-100 text-gray-700 py-2 rounded text-sm">暂停</button>
+            <button class="flex-1 bg-blue-600 text-white py-2 rounded text-sm font-bold">完成本波次</button>
+        </div>
+
+        <!-- 原型说明 -->
+        <div class="bg-gray-50 border-t px-4 py-3 text-xs text-gray-500">
+            <div class="font-bold mb-1">原型说明</div>
+            <div>· 这是仓储平台化项目智能波次合并 PRD 中"拣货员任务页"的静态原型</div>
+            <div>· 实际产品将运行在 RF 手持设备上</div>
+            <div>· 关联 PRD：wms-platform-PRD-01-wave-planning-v0.1.md</div>
+        </div>
+    </div>
+</body>
+</html>

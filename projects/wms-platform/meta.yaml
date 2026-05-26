@@ -1,0 +1,40 @@
+code: wms-platform
+name: 仓储平台化
+domain: WMS
+owner: 江某某
+stakeholders:
+  - 业务: 运营总监 王某
+  - 财务: 财务经理 李某
+  - IT:   架构师 张某
+
+stage: 设计中
+priority: P0
+start_date: 2026-04-01
+target_launch: 2026-09-30
+last_update: 2026-05-26
+
+key_metrics:
+  - name: 拣选人效
+    current: 80
+    target: 100
+    unit: 单/人/小时
+  - name: 缺货率
+    current: 3.2
+    target: 1.5
+    unit: "%"
+  - name: 订单履约时效
+    current: 28
+    target: 18
+    unit: 小时
+
+risks:
+  - 三方仓接入标准未统一，可能延迟全量推广
+  - 旺季流量峰值未压测，存在双 11 拥堵风险
+
+dependencies:
+  - erp-master-data
+
+tags:
+  - 平台化
+  - 算法优化
+  - 多仓协同

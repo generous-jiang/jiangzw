@@ -1,6 +1,8 @@
 # 电商仓库自动化出库系统方案
 
 > 面向中大型电商场景的全链路自动化出库设计，覆盖架构、交互时序、业务案例与落地建议。
+>
+> 所有图形均提供可视化 PNG 与 Mermaid 源码两种形式（点击 `<details>` 查看源码）。
 
 ## 一、系统概述
 
@@ -14,6 +16,11 @@
 | 人力成本 | 100% | 30~40% |
 
 ## 二、系统总体架构
+
+![系统总体架构](images/01-architecture.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 graph TB
@@ -61,6 +68,8 @@ graph TB
     WMS --> BMS
 ```
 
+</details>
+
 **分层职责：**
 - **OMS**：订单清洗、拆单合单、库存锁定
 - **WMS**：库存管理、波次策略、任务编排
@@ -74,6 +83,11 @@ graph TB
 
 ### 3.1 订单接收与履约决策
 
+![订单接收与履约决策](images/02-order-fulfillment.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
+
 ```mermaid
 sequenceDiagram
     participant EC as 电商平台
@@ -86,7 +100,7 @@ sequenceDiagram
     OMS->>OMS: 订单清洗/反欺诈/合规校验
     OMS->>INV: 查询可用库存(SKU, 区域)
     INV-->>OMS: 多仓库存分布
-    OMS->>OMS: 履约决策引擎<br/>(选仓/拆单/合单)
+    OMS->>OMS: 履约决策引擎(选仓/拆单/合单)
 
     alt 单仓履约
         OMS->>WMS: 下发出库单
@@ -104,7 +118,14 @@ sequenceDiagram
     OMS-->>EC: 订单状态:已接单
 ```
 
+</details>
+
 ### 3.2 波次规划与任务下发
+
+![波次规划与任务下发](images/03-wave-planning.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
@@ -118,12 +139,12 @@ sequenceDiagram
     Note over WMS,WAVE: 每5分钟/每500单触发一次波次
 
     WMS->>WAVE: 待出库订单池
-    WAVE->>WAVE: 聚类算法<br/>(同SKU合并/<br/>同分拣口聚集/<br/>截单时间优先)
+    WAVE->>WAVE: 聚类算法(同SKU合并/同分拣口聚集/截单时间优先)
     WAVE->>WAVE: 生成波次(WaveID)
     WAVE->>WMS: 波次结果
 
     WMS->>WES: 下发拣选任务集
-    WES->>WES: 任务排序<br/>(路径最短优先)
+    WES->>WES: 任务排序(路径最短优先)
 
     par 货到人区域
         WES->>WCS: 调度Shuttle出库指令
@@ -139,7 +160,14 @@ sequenceDiagram
     WES-->>WMS: 波次执行中
 ```
 
+</details>
+
 ### 3.3 货到人拣选流程（核心）
+
+![货到人拣选流程](images/04-picking.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
@@ -154,10 +182,10 @@ sequenceDiagram
     SHUTTLE->>CONV: 货箱送达工位
     CONV->>PTL: RFID识别货箱到位
     PTL->>WES: 请求该工位任务
-    WES-->>PTL: 返回任务列表<br/>(目标周转箱/数量)
+    WES-->>PTL: 返回任务列表(目标周转箱/数量)
 
-    PTL->>Picker: 屏幕显示+灯光提示<br/>"取SKU-001 × 2件"
-    PTL->>Picker: 投放灯亮起<br/>"放入周转箱4号"
+    PTL->>Picker: 屏幕显示+灯光提示 取SKU-001 x 2件
+    PTL->>Picker: 投放灯亮起 放入周转箱4号
 
     Picker->>PTL: 扫描SKU条码
     PTL->>PTL: 校验SKU与任务匹配
@@ -184,19 +212,29 @@ sequenceDiagram
     end
 ```
 
+</details>
+
 ### 3.4 复核、打包与交接
+
+![复核、打包与交接](images/05-packing.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
-    participant Box as 周转箱
+    participant Tote as 周转箱
     participant SCAN as 复核台
     participant Packer as 打包员
     participant LABEL as 标签打印机
     participant SORTER as 交叉带分拣机
     participant TRUCK as 装车口
     participant TMS
+    participant WMS
+    participant OMS
+    participant EC as 电商平台
 
-    Box->>SCAN: 输送线送达复核台
+    Tote->>SCAN: 输送线送达复核台
     SCAN->>SCAN: 扫码识别boxId
     SCAN->>WMS: 拉取订单明细
 
@@ -217,7 +255,7 @@ sequenceDiagram
     TMS-->>SCAN: 确认+返回分拣口编号
     SCAN->>SORTER: 注入交叉带
 
-    SORTER->>SORTER: 扫描面单条码<br/>计算落格
+    SORTER->>SORTER: 扫描面单条码计算落格
     SORTER->>TRUCK: 滑落至对应承运商笼车
 
     TRUCK->>TMS: 笼车满载,触发交接
@@ -227,7 +265,14 @@ sequenceDiagram
     OMS-->>EC: 推送物流信息
 ```
 
+</details>
+
 ### 3.5 异常处理流程
+
+![异常处理流程](images/06-exception.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 sequenceDiagram
@@ -236,7 +281,7 @@ sequenceDiagram
     participant WMS
     participant Ops as 现场主管
 
-    System->>EXC: 上报异常<br/>(类型/单号/位置)
+    System->>EXC: 上报异常(类型/单号/位置)
     EXC->>EXC: 异常分类
 
     alt 缺货
@@ -259,6 +304,8 @@ sequenceDiagram
         end
     end
 ```
+
+</details>
 
 ---
 
@@ -289,6 +336,11 @@ sequenceDiagram
 
 **关键策略：**
 
+![大促削峰策略](images/07-peak-strategy.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
+
 ```mermaid
 graph LR
     A[订单洪峰] --> B{削峰策略}
@@ -307,6 +359,8 @@ graph LR
     I --> J[多波次并行<br/>20条产线齐开]
     J --> K[临时增设<br/>移动复核台]
 ```
+
+</details>
 
 **应对措施：**
 - **库存预占**：大促前 24h，热销 SKU 预拉至前置缓存库位（缩短取货距离 70%）
@@ -339,6 +393,11 @@ graph LR
 
 **处理链路：**
 
+![库存差异恢复](images/08-stockout-recovery.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
+
 ```mermaid
 sequenceDiagram
     participant Picker
@@ -367,9 +426,16 @@ sequenceDiagram
     end
 ```
 
+</details>
+
 ---
 
 ## 五、数据模型核心实体
+
+![核心数据模型 ER 图](images/09-erd.png)
+
+<details>
+<summary>查看 Mermaid 源码</summary>
 
 ```mermaid
 erDiagram
@@ -418,6 +484,8 @@ erDiagram
         string waybillNo
     }
 ```
+
+</details>
 
 ---
 

@@ -23,33 +23,52 @@
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
-graph TB
-    subgraph "上游系统"
-        EC[电商平台<br/>淘宝/京东/抖音]
-        ERP[ERP系统]
-        TMS_OUT[承运商TMS]
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 15px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    secondaryColor: '#FFF3E0'
+    tertiaryColor: '#E8F5E9'
+    background: '#FFFFFF'
+    mainBkg: '#E1EAFF'
+    clusterBkg: '#F5F7FA'
+    clusterBorder: '#DEE0E3'
+    edgeLabelBackground: '#FFFFFF'
+    titleColor: '#1F2329'
+---
+flowchart TB
+    subgraph S1["上游系统"]
+        EC["电商平台<br/>淘宝 / 京东 / 抖音"]:::up
+        ERP["ERP 系统"]:::up
+        TMS_OUT["承运商 TMS"]:::up
     end
 
-    subgraph "中台系统层"
-        OMS[OMS<br/>订单管理]
-        WMS[WMS<br/>仓库管理]
-        TMS[TMS<br/>运输管理]
-        BMS[BMS<br/>计费结算]
+    subgraph S2["中台系统层"]
+        OMS["OMS<br/>订单管理"]:::mid
+        WMS["WMS<br/>仓库管理"]:::mid
+        TMS["TMS<br/>运输管理"]:::mid
+        BMS["BMS<br/>计费结算"]:::mid
     end
 
-    subgraph "执行控制层"
-        WCS[WCS<br/>设备控制系统]
-        WES[WES<br/>仓库执行系统]
-        PTL[Put-to-Light/<br/>Pick-to-Light]
+    subgraph S3["执行控制层"]
+        WCS["WCS<br/>设备控制"]:::exe
+        WES["WES<br/>仓库执行"]:::exe
+        PTL["Pick-to-Light<br/>电子标签"]:::exe
     end
 
-    subgraph "硬件设备层"
-        AGV[AGV/AMR小车]
-        AS_RS[堆垛机/Shuttle]
-        SORTER[交叉带分拣机]
-        CONV[输送线]
-        ROBOT[拣选机器人]
-        DWS[DWS动态称重]
+    subgraph S4["硬件设备层"]
+        AGV["AGV / AMR"]:::hw
+        ASRS["堆垛机 / Shuttle"]:::hw
+        SORTER["交叉带分拣机"]:::hw
+        CONV["输送线"]:::hw
+        ROBOT["拣选机器人"]:::hw
+        DWS["DWS 动态称重"]:::hw
     end
 
     EC --> OMS
@@ -58,7 +77,7 @@ graph TB
     WMS --> WES
     WES --> WCS
     WCS --> AGV
-    WCS --> AS_RS
+    WCS --> ASRS
     WCS --> SORTER
     WCS --> CONV
     WCS --> ROBOT
@@ -66,6 +85,11 @@ graph TB
     WMS --> TMS
     TMS --> TMS_OUT
     WMS --> BMS
+
+    classDef up fill:#FFF3E0,stroke:#FA8C16,color:#1F2329,rx:8,ry:8
+    classDef mid fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:8,ry:8
+    classDef exe fill:#E8F5E9,stroke:#52C41A,color:#1F2329,rx:8,ry:8
+    classDef hw fill:#FFF1F0,stroke:#F5222D,color:#1F2329,rx:8,ry:8
 ```
 
 </details>
@@ -89,6 +113,33 @@ graph TB
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    sequenceNumberColor: '#FFFFFF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
     participant EC as 电商平台
     participant OMS
@@ -97,23 +148,23 @@ sequenceDiagram
     participant TMS
 
     EC->>OMS: 推送订单(orderId, SKU, 收货地址)
-    OMS->>OMS: 订单清洗/反欺诈/合规校验
+    OMS->>OMS: 订单清洗 / 反欺诈 / 合规校验
     OMS->>INV: 查询可用库存(SKU, 区域)
     INV-->>OMS: 多仓库存分布
-    OMS->>OMS: 履约决策引擎(选仓/拆单/合单)
+    OMS->>OMS: 履约决策引擎(选仓 / 拆单 / 合单)
 
     alt 单仓履约
         OMS->>WMS: 下发出库单
     else 多仓拆单
-        OMS->>OMS: 按SKU拆分子订单
-        OMS->>WMS: 下发子单A至仓库1
-        OMS->>WMS: 下发子单B至仓库2
+        OMS->>OMS: 按 SKU 拆分子订单
+        OMS->>WMS: 下发子单 A 至仓库1
+        OMS->>WMS: 下发子单 B 至仓库2
     end
 
     WMS->>INV: 锁定库存
     INV-->>WMS: 锁定成功
     WMS->>TMS: 预约承运商资源
-    TMS-->>WMS: 返回运单号/预约时间
+    TMS-->>WMS: 返回运单号 / 预约时间
     WMS-->>OMS: 出库单受理成功
     OMS-->>EC: 订单状态:已接单
 ```
@@ -128,6 +179,32 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
     participant WMS
     participant WAVE as 波次引擎
@@ -136,10 +213,10 @@ sequenceDiagram
     participant AGV
     participant SHUTTLE as Shuttle货架
 
-    Note over WMS,WAVE: 每5分钟/每500单触发一次波次
+    Note over WMS,WAVE: 每5分钟 / 每500单触发一次波次
 
     WMS->>WAVE: 待出库订单池
-    WAVE->>WAVE: 聚类算法(同SKU合并/同分拣口聚集/截单时间优先)
+    WAVE->>WAVE: 聚类算法(同SKU合并 / 同分拣口聚集 / 截单时间优先)
     WAVE->>WAVE: 生成波次(WaveID)
     WAVE->>WMS: 波次结果
 
@@ -170,6 +247,32 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
     participant Picker as 拣选员
     participant PTL as 拣选工作站
@@ -182,7 +285,7 @@ sequenceDiagram
     SHUTTLE->>CONV: 货箱送达工位
     CONV->>PTL: RFID识别货箱到位
     PTL->>WES: 请求该工位任务
-    WES-->>PTL: 返回任务列表(目标周转箱/数量)
+    WES-->>PTL: 返回任务列表(目标周转箱 / 数量)
 
     PTL->>Picker: 屏幕显示+灯光提示 取SKU-001 x 2件
     PTL->>Picker: 投放灯亮起 放入周转箱4号
@@ -206,7 +309,7 @@ sequenceDiagram
 
     alt 重量校验通过
         DWS->>CONV: 放行至复核区
-    else 重量异常(漏拣/多拣)
+    else 重量异常(漏拣 / 多拣)
         DWS->>CONV: 转入异常处理线
         WES->>PTL: 推送异常工单
     end
@@ -222,6 +325,32 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
     participant Tote as 周转箱
     participant SCAN as 复核台
@@ -275,19 +404,48 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
     participant System as 任意环节
     participant EXC as 异常中心
     participant WMS
     participant Ops as 现场主管
+    participant OMS
+    participant WCS
+    participant WES
 
-    System->>EXC: 上报异常(类型/单号/位置)
+    System->>EXC: 上报异常(类型 / 单号 / 位置)
     EXC->>EXC: 异常分类
 
     alt 缺货
         EXC->>WMS: 触发盘点任务
         WMS->>OMS: 部分缺货,询问处理
-        OMS->>OMS: 自动调拨/取消/换仓
+        OMS->>OMS: 自动调拨 / 取消 / 换仓
     else 商品破损
         EXC->>Ops: 推送至PDA
         Ops->>EXC: 拍照+原因登记
@@ -342,22 +500,41 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
-graph LR
-    A[订单洪峰] --> B{削峰策略}
-    B --> C[消息队列<br/>Kafka 缓冲]
-    B --> D[预占库存<br/>无锁化]
-    B --> E[预生成波次<br/>提前30分钟]
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 15px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+---
+flowchart LR
+    A["📦 订单洪峰"]:::peak --> B{"削峰策略"}:::decision
+    B --> C["Kafka 消息缓冲"]:::layer1
+    B --> D["库存预占<br/>(无锁化)"]:::layer1
+    B --> E["波次预生成<br/>(提前30分钟)"]:::layer1
 
-    C --> F[OMS分批消费]
-    D --> G[Redis库存原子扣减]
-    E --> H[预备货至缓存货架]
+    C --> F["OMS 分批消费"]:::layer2
+    D --> G["Redis 原子扣减"]:::layer2
+    E --> H["预备货至缓存货架"]:::layer2
 
-    F --> I[WMS]
+    F --> I["WMS"]:::core
     G --> I
     H --> I
 
-    I --> J[多波次并行<br/>20条产线齐开]
-    J --> K[临时增设<br/>移动复核台]
+    I --> J["多波次并行<br/>20条产线齐开"]:::output
+    J --> K["临时增设<br/>移动复核台"]:::output
+
+    classDef peak fill:#FFF1F0,stroke:#F5222D,color:#1F2329,rx:8,ry:8
+    classDef decision fill:#FFF7E6,stroke:#FA8C16,color:#1F2329
+    classDef layer1 fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:8,ry:8
+    classDef layer2 fill:#E6F4FF,stroke:#1677FF,color:#1F2329,rx:8,ry:8
+    classDef core fill:#F0F5FF,stroke:#2F54EB,color:#1F2329,rx:8,ry:8
+    classDef output fill:#E8F5E9,stroke:#52C41A,color:#1F2329,rx:8,ry:8
 ```
 
 </details>
@@ -399,8 +576,34 @@ graph LR
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    actorBkg: '#E1EAFF'
+    actorBorder: '#3370FF'
+    actorTextColor: '#1F2329'
+    actorLineColor: '#BFBFBF'
+    signalColor: '#1F2329'
+    signalTextColor: '#1F2329'
+    labelBoxBkgColor: '#E1EAFF'
+    labelBoxBorderColor: '#3370FF'
+    labelTextColor: '#1F2329'
+    loopTextColor: '#1F2329'
+    activationBorderColor: '#3370FF'
+    activationBkgColor: '#F0F4FF'
+    noteBkgColor: '#FFFBE6'
+    noteTextColor: '#1F2329'
+    noteBorderColor: '#FFD666'
+---
 sequenceDiagram
-    participant Picker
+    participant Picker as 拣选员
     participant PDA
     participant EXC as 异常中心
     participant WMS
@@ -421,7 +624,7 @@ sequenceDiagram
         alt 邻仓有货
             OMS->>WMS: 转单至杭州仓
         else 全网缺货
-            OMS->>User: 短信:缺货可选退款/等待补货
+            OMS->>User: 短信:缺货可选退款 / 等待补货
         end
     end
 ```
@@ -438,6 +641,18 @@ sequenceDiagram
 <summary>查看 Mermaid 源码</summary>
 
 ```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 13px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+---
 erDiagram
     ORDER ||--o{ ORDER_ITEM : contains
     ORDER ||--|| OUTBOUND_ORDER : generates

@@ -1228,3 +1228,443 @@ erDiagram
 3. **分波次灰度**：新策略先在 5% 流量小波次验证，再全量
 4. **应急预案常态化**：每月演练设备宕机、网络中断、断电等场景
 5. **ROI 测算**：单仓投资约 3000~8000 万，回收期 2~3 年，需匹配单量规模
+
+
+
+---
+
+## 九、业务白话版（给老板和业务同学看）
+
+> 前面 1~8 章是给技术同学看的"专业版"。这一章是同样内容的"白话版"——
+> **不用 WMS / WES / 算法这种词**，全部用生活语言。
+>
+> 三种讲法任选一种：
+> - **9.1 跟着订单走** —— 适合给老板/客户讲"我们家仓库 10 分钟出货"
+> - **9.2 跟着拣货员走** —— 适合参观时讲"为啥我们要上自动化"
+> - **9.3 餐厅类比** —— 适合彻底外行（甚至给家人朋友）
+
+### 9.1 跟着订单走 · 小明的洗发水奇幻漂流
+
+> 一个最常被问的问题："我下单后，仓库到底在 10 分钟里干了啥？"
+> 答案是：**很多事，而且大部分是机器干的。**
+
+#### 全程时间轴
+
+![小明的洗发水从下单到收货](images/16-customer-journey.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+    clusterBkg: '#F5F7FA'
+    clusterBorder: '#DEE0E3'
+---
+flowchart LR
+    subgraph Day1["📅 第 1 天 · 下单当天"]
+        direction LR
+        T0["👤 10:00<br/>小明在淘宝下单<br/>1 瓶洗发水"]:::user
+        T1["💻 10:00:05<br/>电商平台<br/>5 秒后订单<br/>进入仓库"]:::platform
+        T2["🏭 10:00 ~ 10:10<br/>仓库内<br/>10 分钟<br/>装箱贴单"]:::warehouse
+        T3["🚚 11:30<br/>顺丰小哥<br/>开摩托来取走<br/>送往中转站"]:::courier
+        T0 --> T1 --> T2 --> T3
+    end
+
+    subgraph Day2["📅 第 2 天 · 收货"]
+        direction LR
+        T4["📦 12:00<br/>顺丰送上门<br/>小明签收 ✅"]:::user
+    end
+
+    Day1 --> Day2
+
+    classDef user fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef platform fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+    classDef warehouse fill:#E8F5E9,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+    classDef courier fill:#F9F0FF,stroke:#722ED1,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+#### 仓库内 10 分钟做了 8 件事
+
+10 分钟里，小明的洗发水经历了 8 个环节，**人只动手了 1 次**（拿货那下），其他都是机器干的：
+
+![仓库内 10 分钟分镜](images/17-warehouse-10min.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 13px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+---
+flowchart LR
+    A["📋 ①<br/>10:05<br/>排进批次<br/><br/>『你这单和另外<br/>480 单一起处理』"]:::s1
+    B["🤖 ②<br/>10:07<br/>货架自己来<br/><br/>『装洗发水的箱子<br/>滑到拣货员面前』"]:::s1
+    C["🧤 ③<br/>10:08<br/>拣货员取货<br/><br/>『扫码 → 拿一瓶<br/>→ 放进周转箱』"]:::s2
+    D["⚖️ ④<br/>10:09<br/>智能复核<br/><br/>『摄像头看一眼<br/>+ 称一下重量』"]:::s2
+    E["📦 ⑤<br/>10:09:30<br/>装箱<br/><br/>『机器自动选纸箱<br/>填充 + 封装』"]:::s3
+    F["🏷 ⑥<br/>10:09:45<br/>贴运单<br/><br/>『打印小明地址<br/>+ 顺丰单号』"]:::s3
+    G["🎯 ⑦<br/>10:10<br/>智能分拣<br/><br/>『扫一眼运单<br/>滑到顺丰格子』"]:::s4
+    H["✅ ⑧<br/>10:10<br/>等待取件<br/><br/>『在顺丰口排队<br/>等小哥来收』"]:::s4
+
+    A --> B --> C --> D
+    D --> E --> F --> G --> H
+
+    classDef s1 fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef s2 fill:#E8F5E9,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+    classDef s3 fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+    classDef s4 fill:#F9F0FF,stroke:#722ED1,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+#### 几个常见疑问（业务方最爱问的）
+
+**Q1：为啥要等 5 分钟"排进批次"？**
+A：因为同一时间下单的人很多。系统每 5 分钟把所有订单"打包"一起做，就像饭店厨师不会每来一桌就单独开火，会攒一波一起炒——**效率高 5~8 倍**。
+
+**Q2：货架真的会自己跑吗？**
+A：是的，但不是货架长腿，是**机器人钻到货架底下把它顶起来**走（像扫地机器人加强版）。亚马逊 Kiva、京东 Geek+ 都是这个原理。
+
+**Q3：装箱真的不用人？**
+A：标准件可以不用人。机器有 4~6 种纸箱型号，根据物品体积自动选。但**易碎、超大、贵重物品**还是要人工。
+
+**Q4：为啥小明 10 分钟就装好了，但要第二天才能到？**
+A：仓库出货快 ≠ 配送快。**90% 的时间在路上**——分拣中心 → 转运中心 → 派送站 → 上门。仓库自动化能把"出货时间"压到分钟级，但物流时间取决于地理距离。
+
+---
+
+### 9.2 跟着拣货员走 · 小张的一天
+
+> 这个视角最适合参观仓库时讲——"为啥我们花几千万搞自动化？看小张就知道了。"
+
+#### 上午：人到货模式（传统方式）
+
+> 小张在传统仓库工作。早上 8 点上班，推一辆小推车，按订单去货架取货。
+
+![传统仓库 - 人去找货](images/18-walk-to-goods.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+---
+flowchart LR
+    A["🚶 起点<br/>打包区"]:::start
+    B["📦 货架 A<br/>取 1 件"]:::shelf
+    C["📦 货架 B<br/>取 1 件"]:::shelf
+    D["📦 货架 C<br/>取 1 件"]:::shelf
+    E["📦 货架 D<br/>取 1 件"]:::shelf
+    F["🚶 回到<br/>打包区"]:::start
+    G["🥵 半天累计<br/>━━━━━━━━━━━━<br/>步行 4.8 公里<br/>取货 30 件<br/>错拣 2 件<br/>累 ★★★★★"]:::result
+
+    A -->|走 200米| B
+    B -->|走 350米| C
+    C -->|走 500米| D
+    D -->|走 400米| E
+    E -->|走 300米| F
+    F --- G
+
+    classDef start fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef shelf fill:#FFF1F0,stroke:#F5222D,color:#1F2329,rx:10,ry:10
+    classDef result fill:#FFE7BA,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+**小张半天的体感**：
+- 仓库像足球场那么大，他在里面走来走去
+- 4 小时走了快 5 公里（**等于跑了半个马拉松的距离**）
+- 拿了 30 件货
+- 中间还拿错了 2 件（货架货品太多，看花眼）
+- 中午回到工位，腰酸背痛
+
+#### 下午：货到人模式（自动化方式）
+
+> 老板花钱上了自动化设备。下午小张被调到新工位。
+
+![自动化仓库 - 货来找人](images/19-goods-to-person.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+---
+flowchart LR
+    A["🏬 立体货架<br/>(高 12 米)"]:::shelf
+    B["🤖 取货机器人<br/>取出对应货箱"]:::robot
+    C["🛤️ 传送带<br/>自动送到工位"]:::belt
+    D["🧍 小张<br/>站着不动"]:::person
+    E["📦 投进周转箱"]:::tote
+    F["🛤️ 传送带<br/>送往下一道"]:::belt
+    G["😎 半天累计<br/>━━━━━━━━━━━━<br/>步行 0 公里<br/>取货 100 件<br/>错拣 0 件<br/>累 ★"]:::result
+
+    A --> B --> C --> D --> E --> F --- G
+
+    classDef shelf fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+    classDef robot fill:#F0F5FF,stroke:#2F54EB,color:#1F2329,rx:10,ry:10
+    classDef belt fill:#F5F5F5,stroke:#8C8C8C,color:#1F2329,rx:10,ry:10
+    classDef person fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef tote fill:#E8F5E9,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+    classDef result fill:#D9F7BE,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+**小张半天的体感**：
+- 站在固定工位，没动过
+- 屏幕亮一下、灯亮一下，他扫码取货放进周转箱，重复
+- 4 小时拣了 100 件（**是上午的 3 倍多**）
+- 一件没拿错（屏幕和灯把"取啥"明明白白告诉他了）
+- 下班还能跟同事打个球
+
+#### 哪个更好？一图看完
+
+![两种模式对比](images/20-mode-comparison.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+    clusterBkg: '#F5F7FA'
+    clusterBorder: '#DEE0E3'
+---
+flowchart LR
+    subgraph T1["🚶 人到货 (传统)"]
+        direction TB
+        A1["🚶 走路<br/>每天 8~10 公里"]:::bad
+        A2["📦 效率<br/>60 件 / 小时"]:::bad
+        A3["❌ 错拣<br/>每千件 5~8 件"]:::bad
+        A4["💪 疲劳<br/>很累"]:::bad
+        A5["💰 人均产能<br/>基准"]:::neutral
+        A6["✅ 适合<br/>SKU 少 / 单量小 / 起步阶段"]:::ok
+        A1 ~~~ A2 ~~~ A3 ~~~ A4 ~~~ A5 ~~~ A6
+    end
+
+    subgraph T2["🤖 货到人 (自动化)"]
+        direction TB
+        B1["🚶 走路<br/>每天 0 公里"]:::good
+        B2["📦 效率<br/>240 件 / 小时"]:::good
+        B3["✅ 错拣<br/>每千件 0.1 件"]:::good
+        B4["💆 疲劳<br/>很轻松"]:::good
+        B5["💰 人均产能<br/>4 倍"]:::good
+        B6["✅ 适合<br/>SKU 多 / 单量大 / 规模化"]:::ok
+        B1 ~~~ B2 ~~~ B3 ~~~ B4 ~~~ B5 ~~~ B6
+    end
+
+    classDef good fill:#D9F7BE,stroke:#52C41A,color:#1F2329,rx:8,ry:8
+    classDef bad fill:#FFE7E7,stroke:#F5222D,color:#1F2329,rx:8,ry:8
+    classDef ok fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:8,ry:8
+    classDef neutral fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:8,ry:8
+```
+
+</details>
+
+#### 那为啥不所有仓库都搞货到人？
+
+成本问题。一套货到人系统投入 **3000~8000 万**，要日均出 **5 万单以上**才划算。
+所以现在主流是**混合模式**：
+- 高频热销商品 → 货到人区
+- 低频长尾商品 → 人到货区
+- 大件 / 易碎 → 人工区
+
+---
+
+### 9.3 餐厅类比 · 仓库就是一家超级连锁餐厅
+
+> 完全不懂物流的人，听这个最好懂。**仓库的所有事，餐厅都干过**。
+
+#### 整体对照
+
+![仓库 vs 餐厅 整体对照](images/21-restaurant-analogy.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+    clusterBkg: '#F5F7FA'
+    clusterBorder: '#DEE0E3'
+---
+flowchart LR
+    subgraph 餐厅["🍽️ 一家连锁餐厅"]
+        direction TB
+        R1["📞 客人点餐<br/>『我要红烧肉』"]:::r
+        R2["📋 服务员收单<br/>送到厨房"]:::r
+        R3["👨‍🍳 厨师批量做菜<br/>多桌的菜<br/>一起做更高效"]:::rk
+        R4["🍱 服务员从厨房<br/>取菜"]:::r
+        R5["🪑 把菜送到对应桌<br/>3 号桌 / 5 号桌..."]:::r
+        R1 --> R2 --> R3 --> R4 --> R5
+    end
+
+    subgraph 仓库["🏭 一个电商仓库"]
+        direction TB
+        W1["🛒 客户下单<br/>『我要洗发水』"]:::w
+        W2["📋 系统接单<br/>分给仓库"]:::w
+        W3["🤖 仓库批量处理<br/>几百单一起拣<br/>(波次=分批做)"]:::wk
+        W4["🧤 拣货员从货架<br/>取货"]:::w
+        W5["🚚 分拣机送到对应快递<br/>顺丰 / 京东 / 中通..."]:::w
+        W1 --> W2 --> W3 --> W4 --> W5
+    end
+
+    R1 -.对应.-> W1
+    R3 -.关键.-> W3
+    R5 -.对应.-> W5
+
+    classDef r fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef rk fill:#FFE7BA,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef w fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+    classDef wk fill:#ADC6FF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+| 餐厅术语 | 仓库术语 | 干的是同一件事 |
+|---------|---------|---------------|
+| 桌号 | 订单号 | 唯一标识 |
+| 菜单 | SKU | 可选项目 |
+| 一桌客人点的多个菜 | 一个订单的多件商品 | 要打包发出 |
+| 厨师按单批量做菜 | 拣货员按"波次"批量拣货 | **核心：分批做更高效** |
+| 服务员看餐牌送菜 | 分拣机看面单送包裹 | 智能路由 |
+| 高峰期请兼职 | 大促临时招工 | 弹性产能 |
+| 后厨叫号系统 | WMS / WES 系统 | 任务调度大脑 |
+
+#### 分拣机的"读心术"揭秘
+
+> 这个最直观——**分拣机看起来很神奇，其实跟餐厅服务员是一个套路**。
+
+![分拣机魔法揭秘](images/22-sorter-magic.png)
+
+<details><summary>查看 Mermaid 源码</summary>
+
+```mermaid
+---
+config:
+  theme: base
+  themeVariables:
+    fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif'
+    fontSize: 14px
+    primaryColor: '#E1EAFF'
+    primaryTextColor: '#1F2329'
+    primaryBorderColor: '#3370FF'
+    lineColor: '#646A73'
+    background: '#FFFFFF'
+    clusterBkg: '#F5F7FA'
+    clusterBorder: '#DEE0E3'
+---
+flowchart TB
+    subgraph 餐厅["🍽️ 餐厅 · 服务员怎么知道菜送哪桌？"]
+        direction LR
+        A1["🍱 端着红烧肉<br/>『不知道哪桌点的』"]:::r1
+        A2["👀 看餐牌<br/>『3 号桌点的』"]:::r2
+        A3["🚶 直奔 3 号桌<br/>不可能错"]:::r3
+        A1 --> A2 --> A3
+    end
+
+    subgraph 仓库["🏭 仓库 · 分拣机怎么知道包裹送哪家快递？"]
+        direction LR
+        B1["📦 包裹过来<br/>『不知道哪家快递』"]:::w1
+        B2["📷 扫面单<br/>『顺丰 SF1234<br/>上海浦东』"]:::w2
+        B3["🎯 自动滑到顺丰格子<br/>不可能错"]:::w3
+        B1 --> B2 --> B3
+    end
+
+    A2 -.同一个套路.-> B2
+
+    NOTE["💡 揭秘<br/>━━━━━━━━━━━━━━━━━━━━<br/>分拣机其实就是个『超大号自动餐车』<br/>每个包裹身上都有『餐牌』(运单条码)<br/>机器一扫就知道送哪儿"]:::note
+
+    仓库 --- NOTE
+
+    classDef r1 fill:#FFF7E6,stroke:#FA8C16,color:#1F2329,rx:10,ry:10
+    classDef r2 fill:#FFF1B8,stroke:#FAAD14,color:#1F2329,rx:10,ry:10
+    classDef r3 fill:#D9F7BE,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+    classDef w1 fill:#E1EAFF,stroke:#3370FF,color:#1F2329,rx:10,ry:10
+    classDef w2 fill:#F0F5FF,stroke:#2F54EB,color:#1F2329,rx:10,ry:10
+    classDef w3 fill:#D9F7BE,stroke:#52C41A,color:#1F2329,rx:10,ry:10
+    classDef note fill:#FFFBE6,stroke:#FAAD14,color:#1F2329,rx:10,ry:10
+```
+
+</details>
+
+**分拣机背后的 3 个核心动作**：
+
+1. **每个包裹打面单** = 给每盘菜配餐牌（餐厅服务员靠餐牌找桌）
+2. **分拣机扫码读地址** = 服务员看餐牌找桌号
+3. **机器把包裹滑到对应格子** = 服务员把菜放到对应桌
+
+**牛在哪儿？**
+- 一台交叉带分拣机每小时处理 **6000~12000 件**（人工的 100 倍）
+- 准确率 **99.99%**（每 1 万件错 1 件）
+- 24 小时不知疲倦，双 11 也能撑
+
+**说穿了**：自动化不是黑科技，是把人原本就在做的事，**交给一个不会累、不会看花眼的"机器服务员"**。
+
+---
+
+#### 餐厅类比的极限：哪些事餐厅没法类比？
+
+| 仓库的事 | 为啥餐厅类比不了 |
+|---------|----------------|
+| 跨仓拆单 | 餐厅只在一个店做菜 |
+| 库存调拨 | 餐厅食材不会从北京餐厅调到上海 |
+| 大促洪峰 | 餐厅最多包场，不会 1 小时来 50 万人 |
+| 退货逆向流 | 餐厅没有"客人吃完退回来"这种事 |
+
+所以**类比只能讲个 80%**，剩下的 20% 是仓库的"特种作战"——这部分要看前面的技术版（第 1~8 章）。

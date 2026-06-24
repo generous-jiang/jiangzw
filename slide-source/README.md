@@ -1,33 +1,48 @@
-# 武汉 FC 料箱到人系统方案 — 单页 PPTX 源文件
+# 全渠道仓库自动化接入 WCS · 产品方案 — 单页 PPTX 源文件
 
-本目录用于生成 `../武汉FC料箱到人系统方案.pptx`（16:9 宽屏，单页，所有元素均为 PowerPoint 原生可编辑对象）。
+本目录用于生成 `../全渠道仓库自动化接入WCS产品方案.pptx`（16:9 宽屏，单页）。
+**全部元素均为 PowerPoint 原生可编辑对象（形状 / 文本框 / 连线），无任何图片**。
+
+该页忠实还原总框架图：自研 **WCS 统一调度引擎**居中，向上对接多 WMS/WHC，
+向下按"设备能力适配"接入各类自动化供应商；其中 **WCS3 · 料箱到人（闪攀 / 海柔）**
+为本项目应用案例，已用红色高亮标出。
 
 ## 文件说明
 
 | 文件 | 作用 |
 |------|------|
 | `slide.js`   | 唯一数据源：调色板、字体、画布尺寸与全部版面元素（与渲染器无关的 op 列表） |
-| `build.js`   | 由 `slide.js` 生成 `.pptx`（pptxgenjs，原生形状 / 文本框 / 连线 / 图标） |
-| `preview.js` | 由同一份 `slide.js` 生成 SVG→PNG 预览，用于版面校对（坐标与 PPTX 完全一致） |
-| `icons.js`   | 图标光栅化（react-icons / Font Awesome），build 与 preview 共用 |
+| `build.js`   | 由 `slide.js` 生成 `.pptx`（pptxgenjs，原生形状 / 文本框 / 连线） |
+| `preview.js` | 由同一份 `slide.js` 生成 SVG→PNG 预览，坐标与 PPTX 完全一致，用于版面校对 |
 | `preview.png`| 版面预览图 |
 
 ## 重新生成
 
 ```bash
-npm install -g pptxgenjs react-icons react react-dom sharp
+npm install -g pptxgenjs sharp
 export NODE_PATH=$(npm root -g)
 
-node build.js                       # 生成 .pptx
-python /path/to/pptx/scripts/rezip.py 武汉FC料箱到人系统方案.pptx   # 压缩瘦身
-node preview.js                     # 生成 preview.png（核对版面）
-node preview.js debug               # 额外输出文本框边界，用于排查溢出
+node build.js                                   # 生成 .pptx
+python /path/to/pptx/scripts/rezip.py 全渠道仓库自动化接入WCS产品方案.pptx   # 压缩瘦身
+node preview.js                                 # 生成 preview.png（核对版面）
+node preview.js debug                           # 额外输出文本框边界，用于排查溢出
 ```
 
-## 设计要点
+## 配色（取自原框架图）
 
-- **字体**：中文 Microsoft YaHei、拉丁/数字 Arial。
-- **配色**：以深蓝 / 品牌蓝为主，青色为辅，橙色为强调色。
-- **版面**：标题区 → 端到端作业流程（5 步）→ 系统组成（软件 / 设备 / 工作站）→ 核心效能指标。
-- 内容依据总体系统方案图（A71-L-E1-H-CN ×150、HRC-3000-E4-CN ×25、In_01~06、out_01~22、5 组×6=30、17 个接口等），
-  并结合海柔 HaiPick / 闪攀料箱到人方案的典型效能指标（已在脚注标注为参考值）。
+| 用途 | 色值 |
+|------|------|
+| 标题红色竖条 | `#D7382E` |
+| WCS 引擎条（主色） | `#27628D` |
+| 系统框标题蓝 | `#1F4E79` |
+| 卡片标题深蓝灰 | `#2F4458` |
+| 虚线容器边框 | `#AAC2D6` |
+| 卡片/副标题灰 | `#98A2AC` / `#8A929B` |
+
+## 版面结构
+
+标题 → 上游多 WMS/WHC（5 框）→ WCS 统一调度引擎 + ①统一调度层 / ②标准指令集 / ③设备能力适配层
++ 右侧可视化平台 → 下游自动化供应商接入（WCS1~N，闪攀/海柔为 WCS3 高亮）→ 设备清单 → 说明。
+
+> 备注：上一版"武汉 FC 料箱到人系统方案"（海柔/闪攀单方案详情页）的生成脚本保留在 git 历史中，
+> 对应文件 `../武汉FC料箱到人系统方案.pptx` 仍在仓库内，可作为 WCS3 案例的下钻详情页。

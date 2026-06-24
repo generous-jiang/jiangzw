@@ -250,34 +250,40 @@ for name, sub in kanban_items:
                  shape=MSO_SHAPE.RECTANGLE)
     ky += k_h
 
-# ---------------------------------------------------------- arrow zone 2 ------
-A2_Y0, A2_Y1 = WCS_Y + WCS_H + 0.03, WCS_Y + WCS_H + 0.03 + 0.28
-for i in range(N_COL):
-    thin_arrow(col_x[i] + col_w / 2, A2_Y0, A2_Y1)
-plain_text(col_x[1] + col_w * 0.10, A2_Y0 - 0.01, col_w * 2.8, 0.26,
-           "标准指令下发 / 执行状态上报，统一经 WCS 适配对接",
-           size=9, color=TEXT_GRAY, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
-
 # ------------------------------------------------------- vendor systems row ---
-VEND_Y = A2_Y1
-VEND_H = 0.74
-plain_text(MX, VEND_Y - 0.24, 6.0, 0.22, "下游 · 自动化供应商系统（按能力适配接入，可扩展）",
-           size=10, bold=True, color=LABEL_GRAY)
+VEND_Y_BASE = WCS_Y + WCS_H + 0.03
 vendors = [
     ("WCS1 · 货架到人", "PopPick · 全品类订单单行"),
     ("WCS2 · 料箱到人", "RoboShuttle · 高密垂直存储"),
     ("WCS3 · 料箱到人", "闪擎 · 高效拣选"),
     ("WCS4 · 托盘到人", "上架/下拣 · 高密存储"),
+    ("WCS5 · 语音拣选", "语音终端 · 免视觉拣选"),
     ("WCS N · 分拣机器人", "柔性分拣 · 可横向扩展"),
 ]
+N_VEND = len(vendors)
+vend_col_w = (CW - (N_VEND - 1) * GAP) / N_VEND
+vend_col_x = [MX + i * (vend_col_w + GAP) for i in range(N_VEND)]
+
+# ---------------------------------------------------------- arrow zone 2 ------
+A2_Y0, A2_Y1 = VEND_Y_BASE, VEND_Y_BASE + 0.28
+for i in range(N_VEND):
+    thin_arrow(vend_col_x[i] + vend_col_w / 2, A2_Y0, A2_Y1)
+plain_text(vend_col_x[1] + vend_col_w * 0.10, A2_Y0 - 0.01, vend_col_w * 3.2, 0.26,
+           "标准指令下发 / 执行状态上报，统一经 WCS 适配对接",
+           size=9, color=TEXT_GRAY, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+
+VEND_Y = A2_Y1
+VEND_H = 0.74
+plain_text(MX, VEND_Y - 0.24, 6.0, 0.22, "下游 · 自动化供应商系统（按能力适配接入，可扩展）",
+           size=10, bold=True, color=LABEL_GRAY)
 for i, (name, desc) in enumerate(vendors):
-    vb = add_rect(col_x[i], VEND_Y, col_w, VEND_H, fill=WHITE, line=BORDER_GRAY, line_w=1.0,
+    vb = add_rect(vend_col_x[i], VEND_Y, vend_col_w, VEND_H, fill=WHITE, line=BORDER_GRAY, line_w=1.0,
                   round_adj=0.05)
-    plain_text(col_x[i] + 0.08, VEND_Y + 0.07, col_w - 0.16, 0.22, name, size=10.5, bold=True,
+    plain_text(vend_col_x[i] + 0.06, VEND_Y + 0.07, vend_col_w - 0.12, 0.22, name, size=10, bold=True,
                color=DARK_BLUE, align=PP_ALIGN.CENTER)
-    add_rect(col_x[i] + col_w * 0.18, VEND_Y + 0.30, col_w * 0.64, 0.015, fill=BORDER_GRAY,
+    add_rect(vend_col_x[i] + vend_col_w * 0.18, VEND_Y + 0.30, vend_col_w * 0.64, 0.015, fill=BORDER_GRAY,
              shape=MSO_SHAPE.RECTANGLE)
-    plain_text(col_x[i] + 0.08, VEND_Y + 0.36, col_w - 0.16, 0.32, desc, size=8.5, color=TEXT_GRAY,
+    plain_text(vend_col_x[i] + 0.06, VEND_Y + 0.36, vend_col_w - 0.12, 0.32, desc, size=8, color=TEXT_GRAY,
                align=PP_ALIGN.CENTER)
 
 # device-type tag strip (compact, single line, de-emphasized)

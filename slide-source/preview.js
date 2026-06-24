@@ -47,6 +47,16 @@ function textSvg(op) {
       if (op.beginArrow) body += `<polygon points="${x1},${y1} ${(x1 - a).toFixed(1)},${(y1 + a).toFixed(1)} ${(x1 + a).toFixed(1)},${(y1 + a).toFixed(1)}" fill="#${op.color}"/>`;
     } else if (op.k === "text") {
       body += textSvg(op);
+    } else if (op.k === "bullets") {
+      const size = PT(op.size);
+      const lh = size * 1.18 + PT(op.spaceAfter);
+      let y = PX(op.y) + size * 0.95;
+      const x = PX(op.x);
+      if (DEBUG) body += `<rect x="${PX(op.x).toFixed(1)}" y="${PX(op.y).toFixed(1)}" width="${PX(op.w).toFixed(1)}" height="${PX(op.h).toFixed(1)}" fill="none" stroke="#FF5577" stroke-width="0.6" stroke-dasharray="3 3"/>`;
+      for (const item of op.items) {
+        body += `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" font-family="${CJK}" font-size="${size.toFixed(1)}" fill="#${op.color}"><tspan fill="#27628D" font-weight="700">•  </tspan>${esc(item)}</text>`;
+        y += lh;
+      }
     }
   }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${body}</svg>`;

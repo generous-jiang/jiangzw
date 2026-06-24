@@ -8,7 +8,7 @@ const { CANVAS, C, buildOps } = require("./slide");
   pres.defineLayout({ name: "W", width: CANVAS.w, height: CANVAS.h });
   pres.layout = "W";
   pres.author = "WCS";
-  pres.title = "全渠道仓库自动化接入 WCS · 产品方案";
+  pres.title = "武汉 FC 仓 · 海柔自动化系统方案";
   const s = pres.addSlide();
   s.background = { color: C.BG };
 
@@ -26,9 +26,12 @@ const { CANVAS, C, buildOps } = require("./slide");
     } else if (op.k === "text") {
       const runs = op.runs.map((r) => ({ text: r.t, options: { fontFace: r.font, fontSize: r.size, bold: !!r.bold, italic: !!r.italic, color: r.color, charSpacing: r.sp || 0, breakLine: false } }));
       s.addText(runs, { x: op.x, y: op.y, w: op.w, h: op.h, align: op.align, valign: op.valign, margin: op.margin });
+    } else if (op.k === "bullets") {
+      const items = op.items.map((t) => ({ text: t, options: { bullet: { code: "2022", indent: 12 }, breakLine: true, color: op.color, fontSize: op.size, fontFace: op.font, paraSpaceAfter: op.spaceAfter } }));
+      s.addText(items, { x: op.x, y: op.y, w: op.w, h: op.h, margin: 0, valign: "top" });
     }
   }
 
-  await pres.writeFile({ fileName: "全渠道仓库自动化接入WCS产品方案.pptx" });
-  console.log("WROTE 全渠道仓库自动化接入WCS产品方案.pptx");
+  await pres.writeFile({ fileName: "武汉FC仓海柔自动化系统方案.pptx" });
+  console.log("WROTE 武汉FC仓海柔自动化系统方案.pptx");
 })();

@@ -118,28 +118,65 @@ plain_text(MX + 0.18, 0.60, CW - 0.2, 0.32,
            size=11.5, color=TEXT_GRAY, anchor=MSO_ANCHOR.MIDDLE)
 
 # ============================================================= grid columns ===
-N_COL = 5
 GAP = 0.16
-col_w = (CW - (N_COL - 1) * GAP) / N_COL
-col_x = [MX + i * (col_w + GAP) for i in range(N_COL)]
 
 # ---------------------------------------------------------------- WMS row -----
-plain_text(MX, 0.96, 4.0, 0.22, "上游 · 多 WMS / WHC 系统", size=10, bold=True, color=LABEL_GRAY)
+plain_text(MX, 0.96, 7.0, 0.22, "业务决策层 · WMS（上游多源系统接入）", size=10, bold=True, color=LABEL_GRAY)
 WMS_Y, WMS_H = 1.18, 0.58
-wms_names = ["DC Flux WMS", "FC Flux WMS", "City DC WMS", "门店 WMS", "云仓 WMS"]
-for i, name in enumerate(wms_names):
-    box = add_rect(col_x[i], WMS_Y, col_w, WMS_H, fill=WHITE, line=BORDER_BLUE, line_w=1.0,
-                    round_adj=0.05)
-    plain_text(col_x[i], WMS_Y + 0.08, col_w, 0.24, name, size=12.5, bold=True, color=DARK_BLUE,
-               align=PP_ALIGN.CENTER)
-    add_rect(col_x[i] + col_w * 0.18, WMS_Y + 0.34, col_w * 0.64, 0.018, fill=MED_BLUE,
-             shape=MSO_SHAPE.RECTANGLE)
+GROUP_PAD_X = 0.08
+CARD_GAP = 0.05
+GROUP_GAP = 0.18
+
+wms_groups = [
+    ("供应链 WMS", [
+        ("DC Flux WMS", ["DC"]),
+        ("FC Flux WMS", ["CDC"]),
+        ("City DC Flux WMS", ["FWDC", "FC", "CBEC"]),
+    ]),
+    ("门店域 WMS", [
+        ("门店 WMS", ["门店"]),
+        ("云仓 WMS", ["云仓", "社区店", "Darkstore"]),
+    ]),
+]
+
+
+def slot_weight(subs):
+    return 1.3 if len(subs) <= 1 else 1.3 + 0.55 * (len(subs) - 1)
+
+
+group_card_weights = [[slot_weight(subs) for _, subs in items] for _, items in wms_groups]
+group_raw_w = [sum(w) + (len(w) - 1) * CARD_GAP + 2 * GROUP_PAD_X for w in group_card_weights]
+raw_total = sum(group_raw_w) + (len(wms_groups) - 1) * GROUP_GAP
+wms_scale = CW / raw_total
+
+card_y = WMS_Y + 0.07
+card_h = WMS_H - 0.14
+wms_arrow_x = []
+gx = MX
+for gi, (glabel, items) in enumerate(wms_groups):
+    gw = group_raw_w[gi] * wms_scale
+    plain_text(gx + 0.02, WMS_Y - 0.22, 3.0, 0.18, glabel, size=9, bold=True, color=LABEL_GRAY)
+    add_rect(gx, WMS_Y, gw, WMS_H, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_BLUE, line_w=1.0,
+             dash="dash", round_adj=0.05)
+    cx = gx + GROUP_PAD_X * wms_scale
+    for ci, (name, subs) in enumerate(items):
+        cw = group_card_weights[gi][ci] * wms_scale
+        add_rect(cx, card_y, cw, card_h, fill=WHITE, line=BORDER_BLUE, line_w=1.0, round_adj=0.07)
+        plain_text(cx, card_y + 0.04, cw, 0.20, name, size=11 if cw < 2.2 else 12, bold=True,
+                   color=DARK_BLUE, align=PP_ALIGN.CENTER)
+        add_rect(cx + cw * 0.18, card_y + 0.245, cw * 0.64, 0.016, fill=MED_BLUE,
+                 shape=MSO_SHAPE.RECTANGLE)
+        plain_text(cx + 0.02, card_y + 0.27, cw - 0.04, 0.17, " / ".join(subs), size=7.5,
+                   color=TEXT_GRAY, align=PP_ALIGN.CENTER)
+        wms_arrow_x.append(cx + cw / 2)
+        cx += cw + CARD_GAP * wms_scale
+    gx += gw + GROUP_GAP * wms_scale
 
 # ---------------------------------------------------------- arrow zone 1 ------
 A1_Y0, A1_Y1 = WMS_Y + WMS_H + 0.03, 2.05
-for i in range(N_COL):
-    thin_arrow(col_x[i] + col_w / 2, A1_Y0, A1_Y1)
-plain_text(col_x[1] + col_w * 0.25, A1_Y0 - 0.01, col_w * 2.5, 0.26,
+for x in wms_arrow_x:
+    thin_arrow(x, A1_Y0, A1_Y1)
+plain_text(MX + CW * 0.30, A1_Y0 - 0.01, CW * 0.40, 0.26,
            "标准指令双向交互：下行指令 / 上行状态，统一经 WCS",
            size=9, color=TEXT_GRAY, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 
@@ -237,6 +274,7 @@ kanban_items = [
     ("全仓任务看板", "全仓任务 · 看板"),
     ("自动化区域监控", "自动化区任务监控"),
     ("指令执行看板", "指令时效 · 成功率"),
+    ("设备监控层", "设备状态 · 能耗 · 故障预警"),
     ("异常工单看板", "异常 / 重试 / 告警"),
     ("数字孪生", "仓内全要素映射"),
 ]

@@ -344,6 +344,218 @@ plain_text(MX, FOOT_Y, CW, 0.28,
            "供应商系统作为可插拔执行层，按统一适配规范接入、可横向扩展替换。",
            size=9, color=TEXT_GRAY, align=PP_ALIGN.LEFT)
 
+# ===================================================================== #
+# ================= Slide 2: WCS internal architecture =================
+# ===================================================================== #
+slide = prs.slides.add_slide(prs.slide_layouts[6])
+
+
+def dashed_arrow(x, y1, y2, bidir=False, color=RGBColor(0x8C, 0x9B, 0xB3), weight=1.0):
+    conn = slide.shapes.add_connector(MSO_CONNECTOR.STRAIGHT, Inches(x), Inches(y1), Inches(x), Inches(y2))
+    conn.line.color.rgb = color
+    conn.line.width = Pt(weight)
+    ln = conn.line._get_or_add_ln()
+    ln.append(ln.makeelement(qn('a:prstDash'), {'val': 'dash'}))
+    if bidir:
+        ln.append(ln.makeelement(qn('a:headEnd'), {'type': 'triangle', 'w': 'sm', 'len': 'sm'}))
+    ln.append(ln.makeelement(qn('a:tailEnd'), {'type': 'triangle', 'w': 'sm', 'len': 'sm'}))
+    return conn
+
+
+def rail_bar(y, h, label, fill):
+    add_rect(MX, y, RAIL_W, h, fill=fill, round_adj=0.10)
+    plain_text(MX, y, RAIL_W, h, label, size=11.5, bold=True, color=WHITE, align=PP_ALIGN.CENTER,
+               anchor=MSO_ANCHOR.MIDDLE)
+
+
+def sub_panel(x, y, w, h, title_cn, title_en, rows):
+    """rows: list of row -> list of plain chip-name strings (a 1-item row spans full width)."""
+    add_rect(x, y, w, h, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_GRAY, line_w=1.0, dash="dash",
+             round_adj=0.03)
+    pad = 0.10
+    plain_text(x + pad, y + 0.06, w - 2 * pad, 0.18, title_cn, size=9.5, bold=True, color=DARK_BLUE)
+    plain_text(x + pad, y + 0.06, w - 2 * pad, 0.18, title_en, size=7.5, color=TEXT_GRAY,
+               align=PP_ALIGN.RIGHT)
+    grid_y = y + 0.30
+    grid_h = h - 0.30 - pad * 0.6
+    n_rows = len(rows)
+    r_gap = 0.04
+    row_h = (grid_h - (n_rows - 1) * r_gap) / n_rows
+    for ridx, row in enumerate(rows):
+        ry = grid_y + ridx * (row_h + r_gap)
+        n = len(row)
+        c_gap = 0.04
+        c_w = (w - 2 * pad - (n - 1) * c_gap) / n
+        for cidx, name in enumerate(row):
+            cx = x + pad + cidx * (c_w + c_gap)
+            chip = add_rect(cx, ry, c_w, row_h, fill=CHIP_FILL, line=BORDER_GRAY, line_w=0.75,
+                             round_adj=0.10)
+            text_card(chip, name, None, title_size=8.5, title_color=TEXT_DARK, bold_title=False)
+
+
+# ----------------------------------------------------------------- title -----
+add_rect(MX, 0.16, 0.07, 0.40, fill=RED_ACCENT, shape=MSO_SHAPE.RECTANGLE)
+plain_text(MX + 0.18, 0.12, 10.6, 0.48, "WCS 核心架构 · 服务能力分解",
+           size=23, bold=True, color=TEXT_DARK, anchor=MSO_ANCHOR.MIDDLE)
+plain_text(MX + 0.18, 0.60, CW - 0.2, 0.32,
+           "wcs-core 承接 WMS 标准指令并统一调度，向下按场景适配 / 厂商对接 / 调度策略下发执行；"
+           "wcs-dashboard 独立完成运行数据的采集、加工与可视化展示",
+           size=11.5, color=TEXT_GRAY, anchor=MSO_ANCHOR.MIDDLE)
+
+# ----------------------------------------------------------- layout bands ----
+RAIL_W = 0.62
+CX0 = MX + RAIL_W + 0.14
+MCW = CW - RAIL_W - 0.14
+
+WMS2_Y, WMS2_H = 1.05, 0.55
+GAP1_Y0, GAP1_Y1 = WMS2_Y + WMS2_H, WMS2_Y + WMS2_H + 0.30
+WCS2_Y = GAP1_Y1
+WCS2_H = 4.5
+GAP2_Y0, GAP2_Y1 = WCS2_Y + WCS2_H, WCS2_Y + WCS2_H + 0.25
+DEVICE2_Y, DEVICE2_H = GAP2_Y1, 0.50
+
+rail_bar(WMS2_Y, WMS2_H, "WMS", DARK_BLUE)
+rail_bar(WCS2_Y, WCS2_H, "WCS", MED_BLUE)
+rail_bar(DEVICE2_Y, DEVICE2_H, "DEVICE", DARK_BLUE)
+
+# --------------------------------------------------------------- WMS band ----
+wms2_gap = 0.18
+wms2_w = (MCW - wms2_gap) / 2
+wms2_names = ["Flux WMS", "飞云 WMS"]
+for i, name in enumerate(wms2_names):
+    bx = CX0 + i * (wms2_w + wms2_gap)
+    add_rect(bx, WMS2_Y, wms2_w, WMS2_H, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_GRAY, line_w=1.0,
+             dash="dash", round_adj=0.04)
+    plain_text(bx, WMS2_Y, wms2_w, WMS2_H, name, size=13, bold=True, color=DARK_BLUE,
+               align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+
+# ---------------------------------------------------------- arrow zone 1 ----
+dashed_arrow(CX0 + wms2_w * 0.5, GAP1_Y0, GAP1_Y1)
+dashed_arrow(CX0 + wms2_w * 1.5 + wms2_gap, GAP1_Y0, GAP1_Y1)
+plain_text(CX0 + wms2_w * 0.55, GAP1_Y0 + 0.02, 1.6, 0.2, "同步", size=9, color=TEXT_GRAY)
+
+# --------------------------------------------------------------- WCS band ----
+wcs_chunk_gap = 0.18
+core_w = MCW * 0.665
+dash_w = MCW - core_w - wcs_chunk_gap
+core_x = CX0
+dash_x = core_x + core_w + wcs_chunk_gap
+
+add_rect(core_x, WCS2_Y, core_w, WCS2_H, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_BLUE, line_w=1.0,
+         dash="dash", round_adj=0.02)
+add_rect(dash_x, WCS2_Y, dash_w, WCS2_H, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_BLUE, line_w=1.0,
+         dash="dash", round_adj=0.02)
+
+plain_text(core_x + 0.14, WCS2_Y + 0.08, core_w - 1.6, 0.22, "自动化设备调度服务", size=12, bold=True,
+           color=DARK_BLUE)
+plain_text(core_x + core_w - 1.7, WCS2_Y + 0.08, 1.56, 0.22, "wcs-core", size=9, color=TEXT_GRAY,
+           align=PP_ALIGN.RIGHT)
+
+dash_hdr = slide.shapes.add_textbox(Inches(dash_x), Inches(WCS2_Y + 0.06), Inches(dash_w), Inches(0.40))
+dtf = dash_hdr.text_frame
+dtf.word_wrap = True
+dtf.margin_left = Pt(0); dtf.margin_right = Pt(0); dtf.margin_top = Pt(0); dtf.margin_bottom = Pt(0)
+dp1 = dtf.paragraphs[0]; dp1.alignment = PP_ALIGN.CENTER
+dr1 = dp1.add_run(); dr1.text = "自动化设备可视化看板"; dr1.font.size = Pt(12); dr1.font.bold = True
+dr1.font.color.rgb = DARK_BLUE; dr1.font.name = FONT
+dp2 = dtf.add_paragraph(); dp2.alignment = PP_ALIGN.CENTER
+dr2 = dp2.add_run(); dr2.text = "(wcs-dashboard)"; dr2.font.size = Pt(9); dr2.font.color.rgb = TEXT_GRAY
+dr2.font.name = FONT
+
+# core chunk: top pair (instruction / schedule) + bottom trio (scenario / integration / strategy)
+core_pad = 0.12
+core_top_y = WCS2_Y + 0.38
+core_avail_h = WCS2_H - 0.38 - 0.10
+top_h = (core_avail_h - 0.10) * 0.54
+bottom_h = (core_avail_h - 0.10) - top_h
+bottom_y = core_top_y + top_h + 0.10
+
+top_avail_w = core_w - 2 * core_pad
+subA_w = (top_avail_w - 0.14) * 3 / 5
+subB_w = (top_avail_w - 0.14) * 2 / 5
+subA_x = core_x + core_pad
+subB_x = subA_x + subA_w + 0.14
+
+sub_panel(subA_x, core_top_y, subA_w, top_h, "标准指令", "wcs-instruction", [
+    ["商品信息", "收货", "分拣"],
+    ["容器操作", "上架", "对账"],
+    ["波次", "盘点", "补货"],
+    ["拣货", "移库", "调整"],
+])
+sub_panel(subB_x, core_top_y, subB_w, top_h, "指令调度", "wcs-schedule", [
+    ["指令编排", "优先调度"],
+    ["限流降级", "熔断重试"],
+    ["运行监控", "运行记录"],
+    ["结果回传", "路由分配"],
+])
+
+bottom_avail_w = core_w - 2 * core_pad
+subE_w = (bottom_avail_w - 2 * 0.12) * 2 / 5
+subF_w = (bottom_avail_w - 2 * 0.12) * 2 / 5
+subG_w = (bottom_avail_w - 2 * 0.12) * 1 / 5
+subE_x = core_x + core_pad
+subF_x = subE_x + subE_w + 0.12
+subG_x = subF_x + subF_w + 0.12
+
+sub_panel(subE_x, bottom_y, subE_w, bottom_h, "设备场景适配", "wcs-scenario", [
+    ["货架到人", "料箱到人"],
+    ["托盘到人", "分拣机器人"],
+    ["语音拣选", "打包贴标"],
+    ["通用设备适配"],
+])
+sub_panel(subF_x, bottom_y, subF_w, bottom_h, "设备厂商对接", "wcs-integration", [
+    ["SDK对接", "数据映射适配"],
+    ["设备管理", "执行日志"],
+    ["传输协议适配"],
+])
+sub_panel(subG_x, bottom_y, subG_w, bottom_h, "调度策略", "wcs-strategy", [
+    ["规则配置"],
+    ["规则策略"],
+    ["算法策略"],
+])
+
+# dashboard chunk: acquisition / visualization, side by side, full remaining height
+dash_pad = 0.12
+dash_top_y = WCS2_Y + 0.54
+dash_avail_h = WCS2_H - 0.54 - 0.10
+dash_avail_w = dash_w - 2 * dash_pad
+subC_w = subD_w = (dash_avail_w - 0.14) / 2
+subC_x = dash_x + dash_pad
+subD_x = subC_x + subC_w + 0.14
+
+sub_panel(subC_x, dash_top_y, subC_w, dash_avail_h, "数据采集传输", "wcs-acquisition", [
+    ["异步消费"], ["定时采集"], ["数据标准化"], ["投递数据湖"],
+])
+sub_panel(subD_x, dash_top_y, subD_w, dash_avail_h, "可视化展示", "wcs-visualization", [
+    ["数据展示"], ["数据分析"], ["数据加工"], ["数据源管理"],
+])
+
+# ---------------------------------------------------------- arrow zone 2 ----
+dashed_arrow(core_x + core_w * 0.5, GAP2_Y0, GAP2_Y1, bidir=True)
+plain_text(core_x + core_w * 0.5 + 0.10, GAP2_Y0 + 0.02, 1.0, 0.2, "同步", size=9, color=TEXT_GRAY)
+dashed_arrow(dash_x + dash_w * 0.5, GAP2_Y0, GAP2_Y1, bidir=True)
+plain_text(dash_x + dash_w * 0.5 + 0.10, GAP2_Y0 + 0.02, 1.0, 0.2, "异步", size=9, color=TEXT_GRAY)
+
+# ------------------------------------------------------------ DEVICE band ----
+add_rect(CX0, DEVICE2_Y, MCW, DEVICE2_H, fill=RGBColor(0xFC, 0xFD, 0xFE), line=BORDER_GRAY, line_w=1.0,
+         dash="dash", round_adj=0.06)
+n_tags2 = len(device_types)
+tag2_gap = 0.08
+tag2_pad = 0.10
+tag2_w = (MCW - 2 * tag2_pad - (n_tags2 - 1) * tag2_gap) / n_tags2
+for i, t in enumerate(device_types):
+    tx = CX0 + tag2_pad + i * (tag2_w + tag2_gap)
+    add_rect(tx, DEVICE2_Y + 0.09, tag2_w, DEVICE2_H - 0.18, fill=CHIP_FILL, line=BORDER_BLUE, line_w=0.75,
+             round_adj=0.16)
+    plain_text(tx, DEVICE2_Y + 0.09, tag2_w, DEVICE2_H - 0.18, t, size=8, bold=True, color=DARK_BLUE,
+               align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+
+FOOT2_Y = DEVICE2_Y + DEVICE2_H + 0.07
+plain_text(MX, FOOT2_Y, CW, 0.24,
+           "说明：wcs-core 以标准指令承接上行 WMS 指令并统一调度，按场景适配 / 厂商对接 / 调度策略下发执行；"
+           "wcs-dashboard 独立采集、加工并展示运行数据，分别通过同步 / 异步通路与执行层交互。",
+           size=9, color=TEXT_GRAY, align=PP_ALIGN.LEFT)
+
 out_path = "/tmp/claude-0/-home-user-jiangzw/81f8bea8-81f5-5c3f-ac7d-956c9b48b841/scratchpad/WCS架构产品方案.pptx"
 prs.save(out_path)
 print("saved", out_path)

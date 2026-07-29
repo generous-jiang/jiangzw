@@ -598,7 +598,8 @@ CREATE TABLE `load` (
   plan_weight_g    BIGINT, plan_volume_cm3 BIGINT,
   load_rate_weight DECIMAL(5,4), load_rate_volume DECIMAL(5,4),
   temp_zone        VARCHAR(16),
-  seal_no          VARCHAR(64),
+  compartment_config JSON,         -- 多温区车厢分仓: [{"id":"C1","temp_zone":"FROZEN","volume_cm3":...}]
+  seal_no          VARCHAR(64),    -- 冗余首封号; 完整记录见 load_seal
   rate_card_version VARCHAR(32),   -- 发车时冻结的计费版本
   status           VARCHAR(24) NOT NULL,
   PRIMARY KEY (load_no),
@@ -624,18 +625,51 @@ CREATE TABLE load_stop (
 );
 
 CREATE TABLE load_detail (
-  load_no     VARCHAR(64) NOT NULL,
-  stop_seq    INT NOT NULL,
-  shipment_no VARCHAR(64) NOT NULL,
-  lpn         VARCHAR(64),
-  package_no  VARCHAR(64),
-  load_seq    INT,                 -- 装车顺序: 先送的后装
-  scan_time   DATETIME(3),
-  operator_id VARCHAR(32),
-  unloaded_at DATETIME(3),
+  load_no       VARCHAR(64) NOT NULL,
+  stop_seq      INT NOT NULL,
+  shipment_no   VARCHAR(64) NOT NULL,
+  lpn           VARCHAR(64) NOT NULL DEFAULT '*',
+  package_no    VARCHAR(64) NOT NULL DEFAULT '*',
+  load_seq      INT,                  -- 装车顺序: LIFO, 先送的后装, 与 stop_seq 反向
+  compartment_id VARCHAR(16),         -- 多温区车厢
+  plan_flag     TINYINT(1) NOT NULL DEFAULT 1,  -- 计划行(1) vs 临时追加(0)
+  scan_time     DATETIME(3),          -- NULL = 计划了但未扫 -> 发车前必须清空或转甩货
+  operator_id   VARCHAR(32),
+  unloaded_at   DATETIME(3),
+  bump_reason   VARCHAR(32),          -- 甩货原因: NO_SPACE/NOT_STAGED/DAMAGED/CUTOFF
   PRIMARY KEY (load_no, stop_seq, shipment_no, lpn, package_no),
   KEY idx_lddet_lpn (lpn),
-  KEY idx_lddet_shp (shipment_no)
+  KEY idx_lddet_shp (shipment_no),
+  KEY idx_lddet_unscanned (load_no, scan_time)
+);
+
+-- 铅封记录: 一车多门/多点卸货会多次开封重封, 必须是子表
+CREATE TABLE load_seal (
+  seal_id       BIGINT NOT NULL AUTO_INCREMENT,
+  load_no       VARCHAR(64) NOT NULL,
+  seal_no       VARCHAR(64) NOT NULL,
+  seal_type     VARCHAR(16) NOT NULL,  -- DEPART/MIDWAY/RESEAL
+  compartment_id VARCHAR(16),
+  stop_seq      INT,
+  applied_at    DATETIME(3), applied_by VARCHAR(32),
+  broken_at     DATETIME(3), broken_by  VARCHAR(32),
+  photo_urls    JSON,
+  PRIMARY KEY (seal_id),
+  KEY idx_seal_load (load_no, stop_seq)
+);
+
+-- 配载变更留痕: PLANNED 之后的任何改动都进这里
+CREATE TABLE load_change_log (
+  log_id      BIGINT NOT NULL AUTO_INCREMENT,
+  load_no     VARCHAR(64) NOT NULL,
+  change_type VARCHAR(24) NOT NULL,  -- ADD_SHIPMENT/REMOVE_SHIPMENT/BUMP/RESEQUENCE/VEHICLE_SWAP/DRIVER_SWAP/CANCEL
+  before_json JSON,
+  after_json  JSON,
+  reason_code VARCHAR(32),
+  operator_id VARCHAR(32),
+  occurred_at DATETIME(3) NOT NULL,
+  PRIMARY KEY (log_id),
+  KEY idx_ldchg_load (load_no, occurred_at)
 );
 
 CREATE TABLE waybill (

@@ -21,15 +21,17 @@
 > 一旦 `POSTED`，任何修改只能红字冲正。
 > **load 侧的任何变更都不允许回写 shipment** —— 这条决定了下面所有关联关系的方向。
 
-### 0.3 shipment 与 load 是多对多
+### 0.3 shipment 与 load 的基数：取决于过账时机
 
-- 一票分两车拉（超一车体积/载重）
-- 一车拉多票（多门店配送）
+一般情况下需要考虑「一票分两车拉」与「一车拉多票」，两者都指向 M:N 桥接表。
 
-两者都是常态，**必须桥接表**。
-
-> ⚠️ **对既有模型的修正**：`shipment.load_no` 单值字段不成立，改为 `load_shipment` 桥接表。
-> `shipment.load_no` 若保留，只能作为「主载车」冗余查询字段，不参与业务判断。
+> ⚠️ **本架构采用「先装车后过账」（见 [10](10-goods-issue-timing.md)），此结论被简化：**
+> 一次发车 = 一次发货事实 = 一个 shipment，**shipment 永远不跨车**，
+> 因此 `load : shipment = 1 : N`，`load_shipment` 中的
+> `split_flag` / `split_ratio` 不需要，`shipment.load_no + stop_seq` 是合法单值字段。
+>
+> 下文 §2.1 与 §8 中涉及 split 的内容以 [10 §3](10-goods-issue-timing.md#3-模型简化shipment--load-退化为-n--1) 为准。
+> 保留本节是为了说明：**换过账时机就要换这个基数**。
 
 ---
 

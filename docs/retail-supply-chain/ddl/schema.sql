@@ -430,11 +430,14 @@ CREATE TABLE shipment (
   service_level      VARCHAR(24),
   carrier_id         VARCHAR(32),          -- 可空: load 阶段才决定, 不提前绑定
   waybill_no         VARCHAR(64),          -- 冗余便捷字段; 权威关系见 waybill_shipment
-  load_no            VARCHAR(64),          -- 冗余「主载车」; 权威关系见 load_shipment (一票可拆多车)
+  load_no            VARCHAR(64),          -- 「先装车后过账」下 shipment 不跨车, 此处为合法单值
+  stop_seq           INT,
   is_reverse         TINYINT(1) NOT NULL DEFAULT 0,  -- 正向/逆向不同票
   -- ERP 过账 (shipment = 一批出库单的发货流水, 是记账凭证)
+  -- 过账由 Load.Departed 触发; shipment_line 按实装容器反算而非抄 outbound_line
   posting_status     VARCHAR(16) NOT NULL DEFAULT 'PENDING', -- PENDING/POSTING/POSTED/FAILED
   posted_at          DATETIME(3),
+  posting_date       DATE,                 -- 账期归属: 按仓库作业日(有cutoff), 不按自然时间
   erp_doc_no         VARCHAR(64),          -- ERP 凭证号
   posting_batch      VARCHAR(64),
   posting_error      VARCHAR(512),
@@ -693,21 +696,23 @@ CREATE TABLE load_stop (
   KEY idx_stop_node (node_id, plan_eta)
 );
 
--- 车 x 票 桥接: 一票可拆多车, 一车可载多票
--- 存在理由: 成本分摊落点 / 散货无LPN归票 / POD 锚点 / 避免对 load_detail 做 DISTINCT
+-- 车 x 票 关联汇总
+-- 采用「先装车后过账」(见 10-goods-issue-timing.md): 一次发车 = 一次发货事实 = 一个 shipment
+--   -> shipment 永远不跨车, load : shipment = 1 : N, 无需 split_flag / split_ratio
+--   -> 若将来改为「先过账后装车」, 必须恢复 M:N 与 split 逻辑
+-- 保留本表的理由: 计划 vs 实装份额对比 / POD 锚点 / 避免对 load_detail 做 DISTINCT
 CREATE TABLE load_shipment (
   load_no             VARCHAR(64) NOT NULL,
-  stop_seq            INT NOT NULL,
   shipment_no         VARCHAR(64) NOT NULL,
+  stop_seq            INT NOT NULL,
   planned_pallets     INT, planned_cases INT,
   planned_weight_g    BIGINT, planned_volume_cm3 BIGINT,
   loaded_pallets      INT, loaded_cases INT,
   loaded_weight_g     BIGINT, loaded_volume_cm3 BIGINT,
-  split_flag          TINYINT(1) NOT NULL DEFAULT 0,  -- 该票是否跨车拆分
-  split_ratio         DECIMAL(9,6) NOT NULL DEFAULT 1, -- 成本分摊基数; 同票跨车之和必须=1
   status              VARCHAR(24) NOT NULL,
-  PRIMARY KEY (load_no, stop_seq, shipment_no),
-  KEY idx_ldshp_shp (shipment_no)
+  PRIMARY KEY (load_no, shipment_no),
+  KEY idx_ldshp_shp (shipment_no),
+  KEY idx_ldshp_stop (load_no, stop_seq)
 );
 
 -- 装车物理明细: 只存顶层容器 (root LPN), 不展开子箱

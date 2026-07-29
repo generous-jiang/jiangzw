@@ -157,6 +157,7 @@ CREATE TABLE asn (
   supplier_id      VARCHAR(32),
   carrier_id       VARCHAR(32),
   plate_no         VARCHAR(32),
+  transport_ref    VARCHAR(64),   -- 上游 load_no; 由 Load.Departed 事件写入, 引用标记非外键
   expected_arrive  DATETIME,
   appointment_no   VARCHAR(64),
   dock_id          VARCHAR(32),
@@ -428,16 +429,44 @@ CREATE TABLE shipment (
   promised_delivery_time DATETIME,
   service_level      VARCHAR(24),
   carrier_id         VARCHAR(32),          -- 可空: load 阶段才决定, 不提前绑定
-  waybill_no         VARCHAR(64),          -- 可空
-  load_no            VARCHAR(64),          -- 可空
+  waybill_no         VARCHAR(64),          -- 冗余便捷字段; 权威关系见 waybill_shipment
+  load_no            VARCHAR(64),          -- 冗余「主载车」; 权威关系见 load_shipment (一票可拆多车)
   is_reverse         TINYINT(1) NOT NULL DEFAULT 0,  -- 正向/逆向不同票
+  -- ERP 过账 (shipment = 一批出库单的发货流水, 是记账凭证)
+  posting_status     VARCHAR(16) NOT NULL DEFAULT 'PENDING', -- PENDING/POSTING/POSTED/FAILED
+  posted_at          DATETIME(3),
+  erp_doc_no         VARCHAR(64),          -- ERP 凭证号
+  posting_batch      VARCHAR(64),
+  posting_error      VARCHAR(512),
+  reversal_of        VARCHAR(64),          -- 红字冲销指向原 shipment_no
   special_req        JSON,
   status             VARCHAR(24) NOT NULL,
   PRIMARY KEY (shipment_no),
   KEY idx_shp_load (load_no),
   KEY idx_shp_wh_status (warehouse_id, status),
   KEY idx_shp_owner (owner_id, inventory_bucket, status),
-  KEY idx_shp_route (ship_from_node_id, ship_to_node_id, required_pickup_time)
+  KEY idx_shp_route (ship_from_node_id, ship_to_node_id, required_pickup_time),
+  KEY idx_shp_posting (posting_status, posted_at)
+);
+
+-- 发货凭证明细: ERP 过账载体 (SKU x 批次 x 数量 x 货主 x 成本参照)
+-- POSTED 之后不可变, 纠错走 reversal
+CREATE TABLE shipment_line (
+  shipment_no      VARCHAR(64) NOT NULL,
+  line_no          INT NOT NULL,
+  outbound_no      VARCHAR(64) NOT NULL,
+  outbound_line_no INT NOT NULL,
+  sku_id           VARCHAR(32) NOT NULL,
+  lot_no           VARCHAR(64) NOT NULL DEFAULT '*',
+  qty              DECIMAL(18,4) NOT NULL,
+  uom              VARCHAR(8) NOT NULL,
+  base_qty         DECIMAL(18,4) NOT NULL,
+  owner_id         VARCHAR(32) NOT NULL,
+  inv_status       VARCHAR(16) NOT NULL,
+  cost_ref         VARCHAR(64),
+  PRIMARY KEY (shipment_no, line_no),
+  KEY idx_shpline_ob (outbound_no, outbound_line_no),
+  KEY idx_shpline_sku (sku_id, lot_no)
 );
 
 -- 运输段: 仅用于「中转点不是企业库存节点」的情况 (承运商分拨场/快递网点)
@@ -640,6 +669,7 @@ CREATE TABLE `load` (
   duration_min     INT,
   stop_count       INT,
   actual_cost      DECIMAL(18,2),  -- 自有车: 折旧+油+过路+人工; 外包: 账单金额
+  primary_waybill_no VARCHAR(64),  -- 整车场景的派生冗余字段, 非外键, 不参与业务判断
   status           VARCHAR(24) NOT NULL,
   PRIMARY KEY (load_no),
   KEY idx_load_status (status, plan_depart_time),
@@ -663,12 +693,37 @@ CREATE TABLE load_stop (
   KEY idx_stop_node (node_id, plan_eta)
 );
 
+-- 车 x 票 桥接: 一票可拆多车, 一车可载多票
+-- 存在理由: 成本分摊落点 / 散货无LPN归票 / POD 锚点 / 避免对 load_detail 做 DISTINCT
+CREATE TABLE load_shipment (
+  load_no             VARCHAR(64) NOT NULL,
+  stop_seq            INT NOT NULL,
+  shipment_no         VARCHAR(64) NOT NULL,
+  planned_pallets     INT, planned_cases INT,
+  planned_weight_g    BIGINT, planned_volume_cm3 BIGINT,
+  loaded_pallets      INT, loaded_cases INT,
+  loaded_weight_g     BIGINT, loaded_volume_cm3 BIGINT,
+  split_flag          TINYINT(1) NOT NULL DEFAULT 0,  -- 该票是否跨车拆分
+  split_ratio         DECIMAL(9,6) NOT NULL DEFAULT 1, -- 成本分摊基数; 同票跨车之和必须=1
+  status              VARCHAR(24) NOT NULL,
+  PRIMARY KEY (load_no, stop_seq, shipment_no),
+  KEY idx_ldshp_shp (shipment_no)
+);
+
+-- 装车物理明细: 只存顶层容器 (root LPN), 不展开子箱
+-- ref_doc_type 支持 DELIVERY stop 挂 SHIPMENT / PICKUP stop 挂 ASN / 返仓挂 RETURN_ORDER
 CREATE TABLE load_detail (
   load_no       VARCHAR(64) NOT NULL,
   stop_seq      INT NOT NULL,
-  shipment_no   VARCHAR(64) NOT NULL,
-  lpn           VARCHAR(64) NOT NULL DEFAULT '*',
+  ref_doc_type  VARCHAR(16) NOT NULL,  -- SHIPMENT/ASN/RETURN_ORDER
+  ref_doc_no    VARCHAR(64) NOT NULL DEFAULT '*',  -- 混装托盘留 '*', 归属下沉到 container_content
+  lpn           VARCHAR(64) NOT NULL DEFAULT '*',  -- root LPN; 散货为 '*'
   package_no    VARCHAR(64) NOT NULL DEFAULT '*',
+  is_bulk       TINYINT(1) NOT NULL DEFAULT 0,     -- 散货装车 (零担散箱/大件/生鲜筐)
+  sku_id        VARCHAR(32),          -- 仅 is_bulk=1 时使用
+  lot_no        VARCHAR(64),
+  qty           DECIMAL(18,4),
+  uom           VARCHAR(8),
   load_seq      INT,                  -- 装车顺序: LIFO, 先送的后装, 与 stop_seq 反向
   compartment_id VARCHAR(16),         -- 多温区车厢
   plan_flag     TINYINT(1) NOT NULL DEFAULT 1,  -- 计划行(1) vs 临时追加(0)
@@ -676,9 +731,9 @@ CREATE TABLE load_detail (
   operator_id   VARCHAR(32),
   unloaded_at   DATETIME(3),
   bump_reason   VARCHAR(32),          -- 甩货原因: NO_SPACE/NOT_STAGED/DAMAGED/CUTOFF
-  PRIMARY KEY (load_no, stop_seq, shipment_no, lpn, package_no),
+  PRIMARY KEY (load_no, stop_seq, ref_doc_type, ref_doc_no, lpn, package_no),
   KEY idx_lddet_lpn (lpn),
-  KEY idx_lddet_shp (shipment_no),
+  KEY idx_lddet_ref (ref_doc_type, ref_doc_no),
   KEY idx_lddet_unscanned (load_no, scan_time)
 );
 
@@ -711,12 +766,14 @@ CREATE TABLE load_change_log (
   KEY idx_ldchg_load (load_no, occurred_at)
 );
 
+-- 运单 = 承运合同与计费的事实
+-- 粒度由承运商决定(按票/按车/按包裹), 不稳定 -> 不做 load 的外键, 通过 shipment 关联
 CREATE TABLE waybill (
   waybill_no       VARCHAR(64) NOT NULL,
   internal_ref     VARCHAR(64),
   carrier_id       VARCHAR(32) NOT NULL,
   service_product  VARCHAR(32),
-  load_no          VARCHAR(64),
+  load_no          VARCHAR(64),      -- 仅整车自营场景的冗余查询字段, 非外键
   ship_from_node_id VARCHAR(32),
   ship_to_node_id   VARCHAR(32),
   consignee_enc    VARBINARY(1024),

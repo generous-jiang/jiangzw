@@ -14,7 +14,11 @@
 | [05-容器与标签体系](05-container-label.md) | LPN / SSCC / GS1-128、容器层级、各环节标签清单 |
 | [06-SSTK 与 XDK 作业模式](06-sstk-xdk.md) | 存储型 / 越库型（预分配 & 后分配）、Pegging 模型、PBYL / DSD |
 | [07-集成契约与领域事件](07-integration-events.md) | 跨域事件清单、幂等与对账、反腐层设计 |
+| [08-Shipment 与 Load](08-shipment-vs-load.md) | **视角声明**：货主企业 vs 3PL/4PL；两对象的本质、切分规则、货权与在途库存、成本归集 |
 | [ddl/schema.sql](ddl/schema.sql) | 全部核心表的参考 DDL |
+
+> **立场**：本套文档站在**货主企业**（零售商/品牌商）立场，不是物流服务商立场。
+> 两者的模型中轴完全不同 —— 详见 [08 §0](08-shipment-vs-load.md#0-视角声明本套文档的立场)。
 
 ## 六条贯穿全篇的设计原则
 

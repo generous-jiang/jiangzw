@@ -406,25 +406,56 @@ CREATE TABLE package (
   KEY idx_pkg_wb (waybill_no)
 );
 
+-- shipment = 一批货的一次位移承诺 (需求侧/货的视角)
+-- 货主企业视角: shipment 是必选对象; load 与 waybill 均可为空
+-- (快递发C端无 load; 自提/直送/自有车队无 waybill)
 CREATE TABLE shipment (
   shipment_no        VARCHAR(64) NOT NULL,
   warehouse_id       VARCHAR(32) NOT NULL,
   ship_from_node_id  VARCHAR(32) NOT NULL,
   ship_to_node_id    VARCHAR(32) NOT NULL,
+  -- 货权与在途库存 (企业视角核心, 4PL 模型没有)
+  owner_id             VARCHAR(32) NOT NULL,
+  title_transfer_point VARCHAR(16) NOT NULL DEFAULT 'RECEIPT', -- SHIP/RECEIPT/POD
+  inventory_bucket     VARCHAR(24) NOT NULL DEFAULT 'FROM_NODE', -- FROM_NODE/TO_NODE/IN_TRANSIT_POOL
+  -- 计划态 vs 实际态
+  plan_source        VARCHAR(16) NOT NULL DEFAULT 'ESTIMATED',  -- ESTIMATED/ACTUAL
+  est_weight_g       BIGINT, est_volume_cm3 BIGINT,
   total_packages     INT, total_cases INT, total_pallets INT,
   gross_weight_g     BIGINT, volume_cm3 BIGINT,
   temp_zone          VARCHAR(16),
   required_pickup_time   DATETIME,
   promised_delivery_time DATETIME,
   service_level      VARCHAR(24),
-  carrier_id         VARCHAR(32),
-  waybill_no         VARCHAR(64),
-  load_no            VARCHAR(64),
+  carrier_id         VARCHAR(32),          -- 可空: load 阶段才决定, 不提前绑定
+  waybill_no         VARCHAR(64),          -- 可空
+  load_no            VARCHAR(64),          -- 可空
+  is_reverse         TINYINT(1) NOT NULL DEFAULT 0,  -- 正向/逆向不同票
   special_req        JSON,
   status             VARCHAR(24) NOT NULL,
   PRIMARY KEY (shipment_no),
   KEY idx_shp_load (load_no),
-  KEY idx_shp_wh_status (warehouse_id, status)
+  KEY idx_shp_wh_status (warehouse_id, status),
+  KEY idx_shp_owner (owner_id, inventory_bucket, status),
+  KEY idx_shp_route (ship_from_node_id, ship_to_node_id, required_pickup_time)
+);
+
+-- 运输段: 仅用于「中转点不是企业库存节点」的情况 (承运商分拨场/快递网点)
+-- 中转点若是自有 RDC, 应拆成两个 shipment, 中间一次入库或越库
+CREATE TABLE shipment_leg (
+  shipment_no   VARCHAR(64) NOT NULL,
+  leg_seq       INT NOT NULL,
+  leg_type      VARCHAR(16) NOT NULL,  -- PICKUP/LINEHAUL/TRANSFER/DELIVERY
+  from_node_id  VARCHAR(32) NOT NULL,
+  to_node_id    VARCHAR(32) NOT NULL,
+  carrier_id    VARCHAR(32),
+  load_no       VARCHAR(64),
+  waybill_no    VARCHAR(64),
+  plan_depart   DATETIME, plan_arrive  DATETIME,
+  actual_depart DATETIME, actual_arrive DATETIME,
+  status        VARCHAR(24) NOT NULL,
+  PRIMARY KEY (shipment_no, leg_seq),
+  KEY idx_leg_load (load_no)
 );
 
 -- 发货流水: 按 LPN / package 逐件扫码, append-only
@@ -579,8 +610,11 @@ CREATE TABLE xdk_reallocation_log (
 -- 7. 运输 (TMS)
 -- -----------------------------------------------------------------------------
 
+-- load = 一台车的一次行程 (供给侧/运力的视角)
+-- load_source=SHADOW: 外包场景看不到真实车次, 仅作成本与时效归集锚点
 CREATE TABLE `load` (
   load_no          VARCHAR(64) NOT NULL,
+  load_source      VARCHAR(8) NOT NULL DEFAULT 'REAL',  -- REAL/SHADOW
   carrier_id       VARCHAR(32),
   carrier_type     VARCHAR(16),   -- OWN/CONTRACT/PLATFORM
   vehicle_id       VARCHAR(32),
@@ -601,6 +635,11 @@ CREATE TABLE `load` (
   compartment_config JSON,         -- 多温区车厢分仓: [{"id":"C1","temp_zone":"FROZEN","volume_cm3":...}]
   seal_no          VARCHAR(64),    -- 冗余首封号; 完整记录见 load_seal
   rate_card_version VARCHAR(32),   -- 发车时冻结的计费版本
+  -- 自有车队成本核算基础 (企业视角; 4PL 记的是收入, 企业记的是成本)
+  mileage_m        BIGINT,
+  duration_min     INT,
+  stop_count       INT,
+  actual_cost      DECIMAL(18,2),  -- 自有车: 折旧+油+过路+人工; 外包: 账单金额
   status           VARCHAR(24) NOT NULL,
   PRIMARY KEY (load_no),
   KEY idx_load_status (status, plan_depart_time),
@@ -850,6 +889,25 @@ CREATE TABLE rate_card (
   valid_from    DATE, valid_to DATE,
   PRIMARY KEY (rate_card_id, version),
   KEY idx_rate_carrier (carrier_id, valid_from)
+);
+
+-- 成本归集: 把 load / 运费账单摊回 shipment -> 出库行 -> SKU / 门店
+-- 这是货主企业特有的能力; 4PL 算的是「收客户多少」, 企业算的是「花了多少、摊给谁」
+CREATE TABLE cost_allocation (
+  alloc_id     BIGINT NOT NULL AUTO_INCREMENT,
+  period       VARCHAR(16) NOT NULL,
+  source_type  VARCHAR(16) NOT NULL,  -- LOAD/WAYBILL/FREIGHT_BILL
+  source_no    VARCHAR(64) NOT NULL,
+  target_type  VARCHAR(24) NOT NULL,  -- SHIPMENT/OUTBOUND_LINE/SKU/STORE/CATEGORY
+  target_no    VARCHAR(64) NOT NULL,
+  cost_element VARCHAR(24) NOT NULL,  -- FREIGHT/FUEL/WAITING/UNLOAD/RETURN/DETENTION
+  driver       VARCHAR(16) NOT NULL,  -- 分摊动因: WEIGHT/VOLUME/CASE/STOP/EQUAL
+  driver_value DECIMAL(18,4),
+  amount       DECIMAL(18,4) NOT NULL,
+  PRIMARY KEY (alloc_id),
+  KEY idx_ca_source (source_type, source_no),
+  KEY idx_ca_target (target_type, target_no, period),
+  KEY idx_ca_period (period, cost_element)
 );
 
 CREATE TABLE freight_bill (

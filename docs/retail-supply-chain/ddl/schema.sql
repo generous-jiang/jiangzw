@@ -184,14 +184,20 @@ CREATE TABLE asn_line (
   expire_date     DATE,
   operation_mode  VARCHAR(16) NOT NULL DEFAULT 'SSTK',  -- SSTK/XDK/PBYL, 打在行上
   dest_node_id    VARCHAR(32),                          -- XDK 预分配到门店
+  pegging_ref     VARCHAR(64),                          -- XDK 一单到底: 下游门店入库单行 ID
   po_line_ref     VARCHAR(64),
   PRIMARY KEY (asn_no, line_no),
-  KEY idx_asnline_sku (sku_id)
+  KEY idx_asnline_sku (sku_id),
+  KEY idx_asnline_dest (dest_node_id),
+  KEY idx_asnline_pegging (pegging_ref)
 );
 
 CREATE TABLE inbound_order (
   inbound_no    VARCHAR(64) NOT NULL,
   asn_no        VARCHAR(64),
+  -- 调拨入库: 1:1 对应上游发运凭证。这是打断「出库单 x 入库单 M:N」的锚点
+  -- 严格 1:1 —— 一张入库单不允许对多车, 否则 M:N 会从后门回来
+  shipment_no   VARCHAR(64),
   warehouse_id  VARCHAR(32) NOT NULL,
   inbound_type  VARCHAR(16) NOT NULL,  -- PURCHASE/TRANSFER/RETURN/PRODUCTION/XDOCK
   owner_id      VARCHAR(32) NOT NULL,
@@ -202,7 +208,8 @@ CREATE TABLE inbound_order (
   qc_required   TINYINT(1) NOT NULL DEFAULT 0,
   status        VARCHAR(24) NOT NULL,
   PRIMARY KEY (inbound_no),
-  KEY idx_ib_wh_status (warehouse_id, status)
+  KEY idx_ib_wh_status (warehouse_id, status),
+  UNIQUE KEY uk_ib_shipment (shipment_no)   -- 强制 1:1, 从数据库层堵住 M:N
 );
 
 CREATE TABLE inbound_line (
@@ -221,8 +228,12 @@ CREATE TABLE inbound_line (
   uom           VARCHAR(8) NOT NULL,
   base_qty      DECIMAL(18,4) NOT NULL,
   operation_mode VARCHAR(16) NOT NULL DEFAULT 'SSTK',
+  -- 行级 pegging: XDK 行须一单到底; SSTK 行按「商品+批次」重建匹配, pegging_ref 为空
+  source_mode   VARCHAR(8) NOT NULL DEFAULT 'SSTK',   -- SSTK/XDK
+  pegging_ref   VARCHAR(64),           -- = 本行 ID, 供上游容器标签编码与回传比对
   inv_status    VARCHAR(16) NOT NULL DEFAULT 'AVAILABLE',
-  PRIMARY KEY (inbound_no, line_no)
+  PRIMARY KEY (inbound_no, line_no),
+  KEY idx_ibline_pegging (pegging_ref)
 );
 
 -- 收货流水: 一次扫码一条, append-only
@@ -308,10 +319,12 @@ CREATE TABLE outbound_line (
   uom           VARCHAR(8) NOT NULL,
   base_qty      DECIMAL(18,4) NOT NULL,
   lot_strategy  VARCHAR(16) NOT NULL DEFAULT 'FEFO',
-  operation_mode VARCHAR(16) NOT NULL DEFAULT 'SSTK',
+  operation_mode VARCHAR(16) NOT NULL DEFAULT 'SSTK',  -- 混发的前提: mode 打在行上
+  pegging_ref   VARCHAR(64),            -- XDK 一单到底: 下游门店入库单行 ID
   source_line_ref VARCHAR(64),
   PRIMARY KEY (outbound_no, line_no),
-  KEY idx_obline_sku (sku_id)
+  KEY idx_obline_sku (sku_id),
+  KEY idx_obline_pegging (pegging_ref)
 );
 
 CREATE TABLE allocation (
@@ -457,8 +470,10 @@ CREATE TABLE shipment (
 CREATE TABLE shipment_line (
   shipment_no      VARCHAR(64) NOT NULL,
   line_no          INT NOT NULL,
-  outbound_no      VARCHAR(64) NOT NULL,
-  outbound_line_no INT NOT NULL,
+  -- 来源: SSTK 行来自出库单, XDK 行来自越库 ASN -> 用通用引用而非写死 outbound
+  ref_doc_type     VARCHAR(16) NOT NULL,   -- OUTBOUND/ASN
+  ref_doc_no       VARCHAR(64) NOT NULL,
+  ref_line_no      INT NOT NULL,
   sku_id           VARCHAR(32) NOT NULL,
   lot_no           VARCHAR(64) NOT NULL DEFAULT '*',
   qty              DECIMAL(18,4) NOT NULL,
@@ -466,10 +481,15 @@ CREATE TABLE shipment_line (
   base_qty         DECIMAL(18,4) NOT NULL,
   owner_id         VARCHAR(32) NOT NULL,
   inv_status       VARCHAR(16) NOT NULL,
+  -- 行级 pegging: 报文结构统一, 语义按 source_mode 分支
+  source_mode      VARCHAR(8) NOT NULL DEFAULT 'SSTK',  -- SSTK/XDK
+  pegging_type     VARCHAR(16) NOT NULL DEFAULT 'NONE', -- NONE/INBOUND_LINE
+  pegging_ref      VARCHAR(64),            -- XDK 必填: 下游入库单行 ID
   cost_ref         VARCHAR(64),
   PRIMARY KEY (shipment_no, line_no),
-  KEY idx_shpline_ob (outbound_no, outbound_line_no),
-  KEY idx_shpline_sku (sku_id, lot_no)
+  KEY idx_shpline_ref (ref_doc_type, ref_doc_no, ref_line_no),
+  KEY idx_shpline_sku (sku_id, lot_no),
+  KEY idx_shpline_pegging (pegging_ref)
 );
 
 -- 运输段: 仅用于「中转点不是企业库存节点」的情况 (承运商分拨场/快递网点)
@@ -552,22 +572,29 @@ CREATE TABLE container (
   KEY idx_ctn_asset (asset_no)
 );
 
+-- 「容器与单据解耦」的正确落地: 容器头不绑单据, 内容行绑
+-- ref_doc_* + source_mode + pegging_ref 是跨节点溯源与 XDK 一单到底的载体
 CREATE TABLE container_content (
   lpn          VARCHAR(64) NOT NULL,
   line_no      INT NOT NULL,
   sku_id       VARCHAR(32) NOT NULL,
-  lot_no       VARCHAR(64) NOT NULL DEFAULT '*',
+  lot_no       VARCHAR(64) NOT NULL DEFAULT '*',   -- 批次由 WMS 收发货时产生
   expire_date  DATE,
   qty          DECIMAL(18,4) NOT NULL,
   uom          VARCHAR(8) NOT NULL,
   base_qty     DECIMAL(18,4) NOT NULL,
   inv_status   VARCHAR(16) NOT NULL,
   owner_id     VARCHAR(32) NOT NULL,
-  dest_node_id VARCHAR(32),
+  dest_node_id VARCHAR(32),                        -- 混装托盘时行级带目的门店
+  ref_doc_type VARCHAR(16),                        -- OUTBOUND/ASN
   ref_doc_no   VARCHAR(64),
   ref_line_no  INT,
+  source_mode  VARCHAR(8) NOT NULL DEFAULT 'SSTK', -- SSTK/XDK
+  pegging_ref  VARCHAR(64),                        -- XDK 必填: 下游入库单行 ID (一单到底)
   PRIMARY KEY (lpn, line_no),
-  KEY idx_ctc_sku (sku_id, lot_no)
+  KEY idx_ctc_sku (sku_id, lot_no),
+  KEY idx_ctc_ref (ref_doc_type, ref_doc_no, ref_line_no),
+  KEY idx_ctc_pegging (pegging_ref)
 );
 
 CREATE TABLE container_txn (

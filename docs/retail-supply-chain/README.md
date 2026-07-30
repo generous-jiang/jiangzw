@@ -17,6 +17,7 @@
 | [08-Shipment 与 Load](08-shipment-vs-load.md) | **视角声明**：货主企业 vs 3PL/4PL；两对象的本质、切分规则、货权与在途库存、成本归集 |
 | [09-装车单的关联结构](09-load-relationships.md) | Load × Shipment（发货过账凭证）× Waybill × 出入库单据 × 容器 的引用架构与禁止连接 |
 | [10-发货过账时机](10-goods-issue-timing.md) | **先装车后过账**：拣货→集货→装车→发车→过账的完整时序、两段式库存移动、状态联动、超时补偿 |
+| [11-产品边界与系统交互](11-product-boundary-whc.md) | **PFC / WHC / WMS / OIC 职责边界**；用发运凭证打断出入库单 M:N；SSTK/XDK 混发的行级 pegging；各单据与上下游交互的关键字段 |
 | [ddl/schema.sql](ddl/schema.sql) | 全部核心表的参考 DDL |
 
 > **立场**：本套文档站在**货主企业**（零售商/品牌商）立场，不是物流服务商立场。

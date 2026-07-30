@@ -7,6 +7,7 @@
 
 | 文档 | 内容 |
 | --- | --- |
+| **[00-整体框架](00-architecture-overview.md)** | **总纲：五层分工 · 三条主线 · 五条红线 · 核心对象 · 端到端流程 · 落地路线 —— 先读这篇** |
 | [01-领域边界](01-domain-boundaries.md) | ERP / OMS / WMS / TMS / DMS 的职责、SOR 归属、上下文映射、边界争议裁决 |
 | [02-核心数据模型](02-core-data-model.md) | 主数据、库存单元键、库存三视图、库存流水账本（Inventory Ledger） |
 | [03-出入库单据与收发货流水](03-inbound-outbound.md) | ASN / 入库单 / 收货流水 / 出库单 / 波次 / 拣货 / 发货流水，含状态机 |

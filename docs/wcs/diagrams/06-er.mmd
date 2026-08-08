@@ -1,0 +1,45 @@
+erDiagram
+    wcs_task ||--o{ wcs_task_detail : "1:N 任务明细/商品行"
+    wcs_task ||--o{ wcs_task_result : "1:N 结果回传流水(含分批)"
+    wcs_task ||--o{ wcs_dispatch_record : "1:N 下发/重试记录"
+    wcs_task ||--o{ wcs_message_log : "1:N 出入报文流水"
+    wcs_vendor_route ||--o{ wcs_task : "1:N 按仓库号路由到厂商"
+    wcs_tote_snapshot_job {
+        string snapshot_date "料箱快照每日执行记录"
+        string warehouse_code
+        int total_count
+        int received_count
+        string status
+    }
+    wcs_task {
+        string wcs_task_no PK
+        string warehouse_code "路由依据"
+        string vendor_code "厂商"
+        string task_type "做什么"
+        string work_mode "怎么做"
+        string status "状态机"
+        int dispatch_count "下发次数"
+        json ext_json "L3厂商私有字段"
+    }
+    wcs_task_detail {
+        string wcs_task_no FK
+        string item_code
+        decimal plan_qty
+        decimal done_qty
+        string uom "L2 件/箱/托"
+        string carrier_code "L2 载具编码"
+        string carrier_type "L2 料箱/托盘/笼车"
+    }
+    wcs_task_result {
+        string vendor_msg_id UK "幂等键"
+        string result_type
+        string batch_no "分批"
+        bool is_finished "完结信号"
+        text raw_payload "厂商原始报文"
+    }
+    wcs_vendor_route {
+        string warehouse_code UK
+        string vendor_code
+        string endpoint_url
+        string wms_callback_url
+    }

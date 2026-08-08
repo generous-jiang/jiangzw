@@ -1,15 +1,15 @@
 flowchart TB
-    subgraph U["多仓店 WMS（台州门店 / 合肥门店 / FC / 云仓 / 大仓）"]
+    subgraph U["门店 WMS（MyClub）｜未来扩展：合肥门店 / FC / 云仓 / 大仓"]
       W1["WMS-库内"]
       W2["WMS-出库"]
     end
-    subgraph WCS["WCS（本期从0到1新建）"]
+    subgraph WCS["WCS（本期从0到1新建，唯一中间层）"]
       A["接入层<br/>鉴权 / 幂等 / 校验 / 落库"]
       B["调度层<br/>厂商路由 / 状态机 / 重试 / 告警"]
       C["适配层<br/>厂商协议转换 Adapter"]
       A --> B --> C
     end
-    V1["海柔 WES（1期）"]
+    V1["海柔 WES（1期落地）"]
     V2["立镖（预留）"]
     V3["Geek+ / 原力聚合（预留）"]
     DL["OIC / 数据湖"]

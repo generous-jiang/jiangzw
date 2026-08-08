@@ -10,7 +10,7 @@
 | 项 | 内容 |
 |---|---|
 | 文档名称 | 【子PRD】台州海柔飞箱项目 — WCS 系统 |
-| 版本号 | v1.1 |
+| 版本号 | v1.2 |
 | 创建日期 | 2026-08-08 |
 | 产品负责人 | Stone JIANG |
 | 主 PRD | 《【项目】【P0】台州海柔飞箱项目》v1.1（Jasmine） |
@@ -25,6 +25,7 @@
 | 时间 | 版本 | 变更人 | 主要变更内容 |
 |---|---|---|---|
 | 2026-08-08 | v1.0 | Stone JIANG | 首次创建，基于主 PRD v1.1 + 两轮需求澄清 |
+| 2026-08-08 | v1.2 | Stone JIANG | **按《台州飞箱（WCS-海柔接口）》接口清单逐字段核对并重写 §7**：15 个接口对齐、字段映射表补全、新增 §7.7 核对发现的 12 项对接问题；同步修正移出任务复用出库单、无独立受理回执、容器信息随结果回传、库存查询必须分页、模型新增 owner_code |
 | 2026-08-08 | v1.1 | Stone JIANG | 第三轮确认：①指令模型定稿并新增三厂商建模推演（§4.5）②快照时间统一 07:00 ③重试口径定为首次+3 次共 4 次 ④运维后台纳入 1 期 P0、超时改人工兜底 ⑤WMS 按 WCS 标准契约实现回传接口 ⑥载具/单位字段泛化 |
 
 ---
@@ -107,6 +108,8 @@ WCS 在本期从 0 到 1 搭建，定位为 **"设备无关的作业指令调度
 | W8 | 料箱库存快照同步数据湖 | 海柔 → WCS → MQ → 数据湖，每日一次 | P0 |
 | W9 | 厂商路由（调度策略） | 按仓库号决定调用哪个厂商 | P0 |
 | W10 | 重试与飞书告警 | 1 分钟间隔重试 3 次（含首次共 4 次调用），失败告警 | P0 |
+| W12 | 周转容器状态查询（透传） | 海柔接口 12，纯透传，开发成本低，建议 1 期一并做 | P1 |
+| W13 | 商品容器规格装箱件数回传（透传） | 海柔接口 13，纯透传给 WMS | P1 |
 | W11 | WCS 运维后台（任务查询 / 人工重推 / 人工关闭） | **已确认纳入 1 期**。1 期不做系统级超时兜底，改由人工兜底，因此后台必须能查任务、能人工重推。见 §9 | P0 |
 
 ### 2.4 本期不做（Out of Scope）
@@ -117,6 +120,8 @@ WCS 在本期从 0 到 1 搭建，定位为 **"设备无关的作业指令调度
 | N2 | 立镖接入 WCS | 立镖仍走 WMS 历史直连链路，灰度由 WMS 判断 |
 | N3 | 账号管理 / 账号鉴权对接 | 飞箱侧自定义作业账号，1 期 WCS 不做账号体系对接（作业人字段是否透传见 §12 待确认 Q9） |
 | N4 | 标准件数回传-查询 | 主 PRD 标记 P1 |
+| N7 | 商品信息拉取（海柔接口 2） | 海柔标 P2 待定，且接口清单明细页为空白，1 期不做 |
+| N8 | 盘点、调整单、补货通知、关闭回传、库存对账等 10 个接口 | 接口清单已明确「店后仓不使用」，1 期不实现 |
 | N5 | 移出任务取消、拣货任务取消 | 主 PRD 明确"飞箱移出上架任务不支持操作取消"，1 期 WCS 直接拒绝（见 §12 Q3/Q4） |
 | N6 | WCS 侧库存账本 | WCS 不持有库存，库存以 OIC/WMS 为准，WCS 只做转发与快照搬运 |
 
@@ -130,11 +135,11 @@ WCS 在本期从 0 到 1 搭建，定位为 **"设备无关的作业指令调度
 |---|---|---|
 | 上机商品推送 | WMS → WCS → 海柔 → WCS → WMS | 全同步（透传） |
 | 飞箱库存查询 | WMS → WCS → 海柔 → WCS → WMS | 全同步（透传） |
-| 补货上架 | WMS → WCS → 海柔（下发）；海柔 → WCS → WMS（受理/结果） | 下发同步，结果异步 |
+| 补货上架 | WMS → WCS → 海柔（下发，**同步返回受理结果**）；海柔 → WCS → WMS（结果） | 下发同步，结果异步 |
 | 补货取消 | WMS → WCS → 海柔（取消）；结果同步返回 + 异步补偿 | 见 §6.4 |
-| 移出下架 | WMS → WCS → 海柔（下发）；海柔 → WCS → WMS（结果） | 下发同步，结果异步 |
-| 拣货出库 | WMS → WCS → 海柔（下发）；海柔 → WCS → WMS（容器分配 / 结果 / 缺货） | 下发同步，结果异步 |
-| 料箱快照 | 海柔 → WCS → MQ → 数据湖 | 异步，每日一次 |
+| 移出下架 | WMS → WCS → 海柔（**复用出库单接口，`outbound_order_type=MOVE`**）；海柔 → WCS → WMS（结果） | 下发同步，结果异步 |
+| 拣货出库 | WMS → WCS → 海柔（`outbound_order_type=SALE`）；海柔 → WCS → WMS（结果 / 容器 / 缺货） | 下发同步，结果异步 |
+| 料箱快照 | 海柔 → WCS → MQ → 数据湖 | 异步，每日一次（07:00） |
 
 ### 3.2 主流程时序（补货上架，含部分上架）
 
@@ -145,32 +150,33 @@ sequenceDiagram
     participant WCS as WCS
     participant WES as 海柔 WES
     participant FS as 飞书告警
-
-    WMS->>WCS: 1. 补货上架任务下发 (task/replenish/create)
-    WCS->>WCS: 2. 鉴权 → 幂等校验 → 参数校验 → 落库(INIT)
-    WCS-->>WMS: 3. 同步返回 受理成功 + wcsTaskNo
-    WCS->>WES: 4. 异步下发任务 (首次+1min间隔重试3次, 共4次)
-    alt 下发成功
-        WES-->>WCS: 5. 同步 ACK
+    WMS->>WCS: 1. 补货上架任务下发 (I-03)
+    WCS->>WCS: 2. 鉴权→幂等→校验→落库(INIT)
+    WCS-->>WMS: 3. 同步返回受理成功 + wcsTaskNo
+    WCS->>WES: 4. 异步下发 ORDER_INBOUND_CREATE (type=4)
+    alt 同步响应成功
+        WES-->>WCS: 5. returnCode 成功 (无独立异步回执)
         WCS->>WCS: 6. 状态 → DISPATCHED
-    else 3 次下发均失败
+        WCS->>WMS: 7. 受理结果回传 (I-08)
+    else 4次调用均失败
         WCS->>WCS: 状态 → DISPATCH_FAILED
         WCS->>FS: 告警：指令下发失败
-        WCS->>WMS: 回传下发失败
+        WCS->>WMS: 回传下发失败 (I-08)
     end
-    WES-->>WCS: 7. 任务受理回执 (task/accept)
-    WCS->>WMS: 8. 转发受理结果
-    WES-->>WCS: 9. 上架结果回传（可分批，批次 batchNo）
-    WCS->>WCS: 10. 明细累加 → 状态 EXECUTING
-    WCS->>WMS: 11. 转发上架结果（每批实时转发）
-    WES-->>WCS: 12. 任务完结信号 (taskFinished=true)
-    alt 全部上架
+    opt 上架按箱回传 (海柔5, P2)
+        WES-->>WCS: 8. 中间批次结果
+        WCS->>WCS: 9. 明细累加 → EXECUTING
+        WCS->>WMS: 10. 每批实时转发 (I-09)
+    end
+    WES-->>WCS: 11. 上架按单回传 (海柔6, P0)
+    WCS->>WCS: 12. 按 plan_sku_amount vs sku_amount 判终态
+    alt 全量上架
         WCS->>WCS: 状态 → SUCCESS
     else 部分上架
         WCS->>WCS: 状态 → PARTIAL_DONE
         WCS->>FS: 告警：补货部分上架
     end
-    WCS->>WMS: 13. 回传任务终态（WMS 据此将未上架库存移回 SF）
+    WCS->>WMS: 13. 回传终态 (I-09)，WMS据此将未上架库存移回SF
 ```
 
 ### 3.3 主流程时序（拣货出库，含容器分配与库存不足）
@@ -182,23 +188,21 @@ sequenceDiagram
     participant WCS as WCS
     participant WES as 海柔 WES
     participant FS as 飞书告警
-
-    WMS->>WCS: 1. 拣货出库任务下发 (task/pick/create)
+    WMS->>WCS: 1. 拣货出库任务下发 (I-05)
     WCS-->>WMS: 2. 同步受理 + wcsTaskNo
-    WCS->>WES: 3. 下发任务
-    WES-->>WCS: 4. 受理回执
-    WCS->>WMS: 5. 转发受理结果
-    WES-->>WCS: 6. 容器分配结果 (task/container)
-    WCS->>WMS: 7. 转发容器分配结果（WMS 据此完成作业）
-    opt 出库前库存不足
-        WES-->>WCS: 8. 库存不足回传（分批，batchNo）
-        WCS->>WMS: 9. 转发缺货明细
-        WCS->>FS: 10. 告警：飞箱库存不足
+    WCS->>WES: 3. OUTBOUND_ORDER_CREATE (outbound_order_type=SALE)
+    WES-->>WCS: 4. 同步响应受理成功
+    WCS->>WMS: 5. 受理结果回传 (I-08)
+    opt 预占/拣选缺货 (海柔11)
+        WES-->>WCS: 6. 预占拣货异常上报 business_type=分配/拣选
+        WCS->>WMS: 7. 库存不足回传 (I-11)
+        WCS->>FS: 8. 告警：飞箱库存不足
     end
-    WES-->>WCS: 11. 拣货结果回传（可分批）
-    WCS->>WMS: 12. 转发拣货结果
-    WES-->>WCS: 13. 任务完结
-    WCS->>WMS: 14. 回传终态 SUCCESS / PARTIAL_DONE
+    WES-->>WCS: 9. 出库单按容器回传 (海柔9)
+    WCS->>WMS: 10. 容器分配结果 (I-10) + 拣货结果 (I-09)
+    WES-->>WCS: 11. 拣货完成回传按单 (海柔10)
+    WCS->>WCS: 12. 按 plan/pickup_sku_amount + lack_flag 判终态
+    WCS->>WMS: 13. 回传终态 SUCCESS / PARTIAL_DONE (部分拣货另发告警)
 ```
 
 ---
@@ -444,7 +448,7 @@ erDiagram
 | `INIT` | 待下发 | 中间态 | WCS 已受理并落库，尚未下发厂商 |
 | `DISPATCHING` | 下发中 | 中间态 | 正在调用厂商接口（含重试窗口内） |
 | `DISPATCH_FAILED` | 下发失败 | **可恢复终态** | 共 4 次调用（首次 + 重试 3 次）仍失败，已告警，支持人工重推 |
-| `DISPATCHED` | 已下发 | 中间态 | 厂商已返回受理成功 |
+| `DISPATCHED` | 已下发 | 中间态 | 厂商**同步响应**受理成功（海柔无独立异步回执接口） |
 | `EXECUTING` | 执行中 | 中间态 | 厂商已开始作业 / 已有部分结果回传 |
 | `PARTIAL_DONE` | 部分完成 | **终态** | 厂商已完结但未全量完成（部分上架 / 部分拣货） |
 | `SUCCESS` | 已完成 | 终态 | 全量完成 |
@@ -510,7 +514,8 @@ stateDiagram-v2
 | `source_system` | varchar(20) | Y | 来源系统：`WMS_INNER`(库内) / `WMS_OUTBOUND`(出库) |
 | `source_task_no` | varchar(64) | Y | 来源单号（WMS 补货单号 / 出库单号 / 移库单号） |
 | `source_biz_no` | varchar(64) | N | 上游业务单号（如 PFC 备货出库单号），用于排查 |
-| `warehouse_code` | varchar(32) | Y | 仓库号 / 门店号，**厂商路由的唯一依据** |
+| `warehouse_code` | varchar(32) | Y | 仓库号 / 门店号，**厂商路由的唯一依据**（映射海柔 `warehouse_code`） |
+| `owner_code` | varchar(32) | Y | **货主**。海柔全接口必填，由 WMS 下发时传入 |
 | `vendor_code` | varchar(20) | Y | 厂商编码，路由结果 |
 | `task_type` | varchar(32) | Y | 任务类型，见 §4.5 ① |
 | `work_mode` | varchar(32) | Y | 作业形态，见 §4.5 ②，1 期固定 `TOTE_TO_PERSON` |
@@ -574,13 +579,14 @@ stateDiagram-v2
 |---|---|---|---|
 | `id` | bigint | Y | 主键 |
 | `wcs_task_no` | varchar(40) | Y | 关联主表 |
-| `vendor_msg_id` | varchar(64) | Y | **厂商消息 ID，幂等键** |
+| `vendor_msg_id` | varchar(64) | Y | **厂商消息 ID，幂等键**。海柔场景取报文中的 `idempotentCode`（幂等号） |
 | `result_type` | varchar(30) | Y | `ACCEPT`(受理) / `EXECUTE`(执行结果) / `SHORTAGE`(缺货) / `CONTAINER`(容器分配) / `CANCEL`(取消结果) / `FINISH`(完结) |
 | `batch_no` | varchar(64) | N | 厂商批次号（分批回传时） |
 | `is_finished` | tinyint | Y | 是否任务完结信号，0/1 |
 | `result_code` | varchar(40) | N | 厂商结果码 |
 | `result_msg` | varchar(500) | N | 厂商结果描述 |
 | `raw_payload` | text | Y | **厂商原始报文（排查用）** |
+| `vendor_trace_id` | varchar(64) | N | 厂商响应中的 `traceId`，跨系统排查用 |
 | `forward_status` | varchar(20) | Y | 回传 WMS 状态：`PENDING`/`SUCCESS`/`FAILED` |
 | `forward_count` | int | Y | 回传 WMS 次数 |
 | `operate_time` | datetime | N | 厂商实际作业时间 |
@@ -633,6 +639,8 @@ stateDiagram-v2
 | `id` | bigint | 主键 |
 | `warehouse_code` | varchar(32) | 仓库号 / 门店号（UNIQUE） |
 | `warehouse_name` | varchar(64) | 仓库名称 |
+| `vendor_warehouse_id` | bigint | **厂商侧仓库 ID**（海柔信封必填的 `warehouseId`，Number 型），由本表配置映射 |
+| `owner_code` | varchar(32) | 默认货主（WMS 未传时兜底） |
 | `vendor_code` | varchar(20) | 厂商编码 |
 | `work_mode` | varchar(32) | 作业形态 |
 | `endpoint_url` | varchar(255) | 厂商服务地址 |
@@ -695,8 +703,8 @@ stateDiagram-v2
 | # | 规则 |
 |---|---|
 | P2-1 | 与 W1 一致：不落任务表、不加工、落报文流水 |
-| P2-2 | 支持按 **门店号 + 商品号列表** 查询；商品号为空时查询全量（是否允许全量查询见 §12 Q11） |
-| P2-3 | 返回内容以厂商返回为准，WCS 只做字段名标准化映射 |
+| P2-2 | 按 **仓库号 + 货主 + 商品号列表** 查询。**海柔要求 `sku_list` 必填、且必须分页**（`current_page` 从 1 开始、`page_size`），不支持全量查询。WCS 原样透传分页参数与 `total_num` |
+| P2-3 | 返回内容以厂商返回为准，WCS 只做字段名标准化映射（`amount`/`sku_code`/`out_batch_code`/`owner_code` + 分页信息） |
 | P2-4 | 该接口面向人工页面查询，**建议 WMS 侧做前端防连点**；WCS 侧按门店做限流（默认 10 QPS，可配） |
 
 **异常场景**：路由缺失 / 厂商失败 / 超时，处理同 W1。
@@ -704,6 +712,7 @@ stateDiagram-v2
 **验收标准**：
 - ✅ 查询结果与海柔系统内实际库存一致
 - ✅ 查询不存在的商品，返回空列表而非报错
+- ✅ 分页：`page_size=50` 时翻页正确，`total_num` 与实际一致
 - ✅ 单次查询 P99 响应时间 ≤ 2s（含海柔耗时）
 
 ---
@@ -717,11 +726,11 @@ stateDiagram-v2
 | # | 规则 |
 |---|---|
 | P3-1 | WCS 收到任务后：鉴权 → 幂等校验（`source_system + source_task_no + task_type`）→ 参数校验 → 路由（按 `warehouse_code`）→ 落 `wcs_task` + `wcs_task_detail`，状态 `INIT` → **同步返回受理成功 + wcsTaskNo** |
-| P3-2 | 受理成功后**异步**下发厂商（避免 WMS 等待厂商链路）；下发成功且厂商 ACK 后置 `DISPATCHED` |
+| P3-2 | 受理成功后**异步**下发厂商（避免 WMS 等待厂商链路）；海柔同步响应成功即置 `DISPATCHED`。下发时 `type` 固定传 `4`（补货入库单），`receipt_code=wcsTaskNo`，`orig_note=WMS 补货通知单号`（需在海柔界面展示） |
 | P3-3 | 下发失败按 §6.10 重试策略：**首次调用失败后，间隔 1 分钟重试，最多重试 3 次（含首次共 4 次调用）**；仍失败 → `DISPATCH_FAILED` + 飞书告警 + 回传 WMS |
-| P3-4 | 厂商回传"任务受理回执"→ WCS 转发 WMS |
-| P3-5 | 厂商**分批回传**上架结果：WCS 按 `vendor_msg_id` 幂等，按行号累加 `done_qty`，主表置 `EXECUTING`，**每批实时转发 WMS**（不做合并等待） |
-| P3-6 | 厂商回传 `isFinished=true` 时判定终态：全量完成 → `SUCCESS`；部分完成 → `PARTIAL_DONE` **+ 飞书告警**；零完成 → `FAILED` |
+| P3-4 | **海柔无独立异步受理回执接口**：下发接口同步返回 `returnCode`/`code`/`message`，WCS 据此判定 `DISPATCHED` / `FAILED`，并通过 I-08 转发 WMS |
+| P3-5 | 厂商回传分两个接口：**按箱回传（海柔 5，P2）= 中间批次**；**按单回传（海柔 6，P0）= 整单完结**。WCS 按 `idempotentCode` 幂等，按行号累加 `done_qty`，**每批实时转发 WMS**（不做合并等待）。⚠️ 接口 5 海柔标 P2，若 1 期不实现则上架无过程回传，见 §7.7-R3 |
+| P3-6 | 收到**按单回传（海柔 6）**时判定终态，基准为报文中的 `plan_sku_amount` 与 `sku_amount`：全量 → `SUCCESS`；部分 → `PARTIAL_DONE` **+ 飞书告警**；零完成 → `FAILED`。`receipt_status`（异常标识）为异常时一并告警 |
 | P3-7 | **部分上架的库存处理由 WMS 负责**（未上架库存移回 SF），WCS 只保证把"计划量 / 实际上架量 / 差异量"准确回传 |
 | P3-8 | 回传 WMS 失败时按 §6.10 重试；共 4 次调用仍失败 → 飞书告警，`wcs_task_result.forward_status = FAILED`，支持运维后台人工重推 |
 
@@ -756,18 +765,22 @@ stateDiagram-v2
 <!-- wcs-img: 05-cancel.png -->
 ```mermaid
 flowchart TD
-    A[WMS 发起取消] --> B{WCS 任务是否存在}
-    B -- 否 --> C[返回 TASK_NOT_FOUND]
-    B -- 是 --> D{当前状态}
-    D -- SUCCESS/FAILED/CANCELLED/CLOSED --> E[返回取消失败: 任务已终态]
-    D -- INIT 未下发 --> F[本地直接置 CANCELLED] --> G[同步返回取消成功]
-    D -- DISPATCHED/EXECUTING --> H[置 CANCELLING, 记录原状态]
-    H --> I[同步调用厂商取消接口]
-    I -- 厂商成功 --> J[置 CANCELLED] --> K[同步返回 WMS 取消成功]
-    I -- 厂商业务失败 --> L[状态回滚到原状态] --> M[同步返回 WMS 取消失败+原因] --> N[飞书告警]
-    I -- 网络异常/超时 --> O[1min间隔重试3次<br/>含首次共4次]
-    O -- 重试成功 --> J
-    O -- 3次失败 --> P[状态回滚到原状态] --> Q[返回 WMS 取消失败] --> N
+    A["WMS 发起取消 (I-06)"] --> B{"WCS 任务是否存在"}
+    B -- 否 --> C["返回 TASK_NOT_FOUND"]
+    B -- 是 --> D{"当前状态"}
+    D -- "SUCCESS/FAILED/CANCELLED/CLOSED" --> E["返回取消失败：任务已终态"]
+    D -- "INIT 未下发" --> F["本地直接置 CANCELLED"] --> G["同步返回取消成功"]
+    D -- "DISPATCHED/EXECUTING" --> H["置 CANCELLING，记录原状态"]
+    H --> T{"task_type"}
+    T -- "INBOUND_PUTAWAY" --> I1["海柔4 ORDER_INBOUND_CANCEL"]
+    T -- "OUTBOUND_PICK / MOVE_OUT" --> I2["海柔8 /wrm/outbound/cancel"]
+    I1 --> R{"operation_result"}
+    I2 --> R
+    R -- 取消成功 --> J["置 CANCELLED"] --> K["同步返回 WMS 取消成功"]
+    R -- 业务失败 --> L["状态回滚到原状态"] --> M["返回失败 + error_message 原文"] --> N["飞书告警"]
+    R -- "网络异常/超时" --> O["1min间隔重试3次<br/>含首次共4次"]
+    O -- 成功 --> J
+    O -- 4次均失败 --> P["状态回滚到原状态"] --> Q["返回 WMS 取消失败"] --> N
 ```
 
 **处理规则**：
@@ -801,9 +814,9 @@ flowchart TD
 | # | 规则 |
 |---|---|
 | P5-1 | 流程与 W3 一致：受理 → 落库 → 异步下发 → 受理回执 → 结果回传（可分批）→ 终态判定 |
-| P5-2 | `task_type = MOVE_OUT`，`from_location = FX`，`to_location = SF` |
+| P5-2 | `task_type = MOVE_OUT`，`from_location = FX`，`to_location = SF`。**海柔侧没有独立移出接口，复用出库单下发（接口 7），由 `outbound_order_type=MOVE` 区分**（拣货为 `SALE`） |
 | P5-3 | 厂商可回传**缺货明细**（下架时实际库存不足），处理同 §6.7 |
-| P5-4 | **不支持取消**（主 PRD 明确），收到取消请求返回 `WCS_CANCEL_NOT_SUPPORT` |
+| P5-4 | 主 PRD 明确移出**不支持取消**，WCS 对 WMS 返回 `WCS_CANCEL_NOT_SUPPORT`。⚠️ 但海柔出库单取消（接口 8）是 P0 且移出走出库单，**技术上可取消**——WCS 侧实现完整能力、对 WMS 暂不开放，是否放开由业务定，见 §7.7-R2 |
 | P5-5 | 部分下架 → 终态 `PARTIAL_DONE` + 飞书告警，WMS 据差异做库存处理 |
 
 **验收标准**：
@@ -822,12 +835,12 @@ flowchart TD
 | # | 规则 |
 |---|---|
 | P6-1 | `task_type = OUTBOUND_PICK`；主流程同 W3 |
-| P6-2 | **容器分配**：厂商在作业过程中回传容器分配结果（任务 → 容器编码 / 容器类型 / 容器序号），WCS **实时转发 WMS**，并回填 `wcs_task.container_code`、`wcs_task_detail.container_code` |
-| P6-3 | 一个任务可能分配**多个容器**，容器分配可分多次回传，WCS 按 `vendor_msg_id` 幂等，逐条转发 |
+| P6-2 | **容器信息没有独立接口**：随海柔**按容器回传（接口 9）**的 `order_box_no` / `container_status`，与**按单回传（接口 10）**的 `container_list`（`container_code`、`seeding_bin_code` 格口号、`wall_code` 播种墙号、`pallet_code` 码放托盘号）一起送达。WCS 从中提取并通过 I-10 **实时转发 WMS**，同时回填 `container_code` |
+| P6-3 | 一个任务可能分配**多个容器**（接口 10 有 `container_amount` 容器数），可分多次回传，WCS 按 `idempotentCode` 幂等，逐条转发 |
 | P6-4 | 拣货结果可分批回传，处理同 P3-5 |
 | P6-5 | 出库前库存不足由厂商回传，处理见 §6.7 |
-| P6-6 | 部分拣货 → 终态 `PARTIAL_DONE` **+ 飞书告警**（已明确要求"部分发货"需告警） |
-| P6-7 | **1 期不支持取消**（见 §12 Q4） |
+| P6-6 | 终态判定基准为接口 10 的 `plan_sku_amount` 与 `pickup_sku_amount`；**`lack_flag`（缺发标识）为真时强制判 `PARTIAL_DONE`**。部分拣货 → `PARTIAL_DONE` **+ 飞书告警** |
+| P6-7 | 海柔出库单取消（接口 8）是 P0，**WCS 侧实现取消能力**；是否对 WMS 开放拣货取消由业务定，见 §7.7-R2 |
 
 **验收标准**：
 - ✅ 正常拣货：容器分配结果先于/独立于拣货结果送达 WMS，WMS 可据此完成作业
@@ -845,12 +858,13 @@ flowchart TD
 
 | # | 规则 |
 |---|---|
-| P7-1 | **按分批处理**：厂商可对同一任务多次回传缺货明细，每次带 `batchNo` + `vendorMsgId` |
-| P7-2 | WCS 按 `vendorMsgId` 幂等，写入 `wcs_task_detail.shortage_qty`（累加），行状态置 `SHORTAGE` |
+| P7-1 | 对应海柔**预占拣货异常上报（接口 11，P0）**。可对同一任务多次上报，每次带 `idempotentCode` 幂等号 |
+| P7-2 | WCS 按 `idempotentCode` 幂等，将海柔 `quantity`（少货数量）累加写入 `wcs_task_detail.shortage_qty`，行状态置 `SHORTAGE` |
 | P7-3 | **每批实时转发 WMS**，不做合并等待 |
-| P7-4 | **每次缺货回传均触发飞书告警**（含门店、任务号、商品号、缺货量），便于现场介入 |
+| P7-4 | **每次缺货回传均触发飞书告警**，告警内容须含海柔 `business_type`（**少货环节：分配 / 拣选**），便于现场判断是分配阶段还是拣选阶段缺货 |
 | P7-5 | 缺货不改变任务主状态（仍为 `EXECUTING`），最终由完结信号决定 `PARTIAL_DONE` / `FAILED` |
-| P7-6 | 告警需**做聚合防刷**：同一任务号 5 分钟内多次缺货，合并为一条告警（防止告警风暴，见 §12 Q13） |
+| P7-6 | 告警需**做聚合防刷**：同一任务号 5 分钟内多次缺货，合并为一条告警 |
+| P7-7 | ⚠️ 海柔只提供「少货数量」，**不提供飞箱实际可用数量**。WCS 回传 WMS 的 `availableQty` 为推算值（`planQty − 累计 shortageQty`），字段说明需标注，避免 WMS 当作实测值使用 |
 
 **验收标准**：
 - ✅ 单批缺货：WMS 收到缺货明细，飞书群收到告警
@@ -870,19 +884,19 @@ flowchart TD
 | # | 规则 |
 |---|---|
 | P8-1 | **推送时机**：每日 **07:00**（已确认，与主 PRD 一致——该时点作业相对静止，快照准确度最高），由海柔调用 WCS 快照接收接口推送 |
-| P8-2 | **推送方式**：海柔侧**分页推送**（建议单页 ≤ 500 条），报文带 `snapshotDate`、`pageNo`、`totalPage`、`totalCount` |
-| P8-3 | WCS 收到后做**完整性校验**：`累计接收条数 == totalCount` 且 `pageNo` 无缺页，方视为该日快照完整 |
-| P8-4 | WCS 将快照转换为标准格式，投递到 MQ Topic `wcs.tote.inventory.snapshot`，**按页/批投递**，消息体带 `snapshotDate` + `batchSeq` + `isLast` 便于数据湖判断收齐 |
+| P8-2 | **推送方式**：海柔调用 V-07，报文为 `command_list` 数组（`container_code`、`sku_code`、`sku_name`、`division`、`expiration_date`、`sku_quantity`、`frozen_quantity`）。⚠️ **接口 14 当前没有 snapshotDate、没有分页字段、没有总条数**，见 §7.7-R9 |
+| P8-3 | **完整性校验（降级方案）**：在海柔补充分页与快照日期字段前只能做**弱对账**——以「当日 07:30 前是否收到过推送」及接收条数环比（与前 7 日均值偏差 > 30% 则告警）判断异常。海柔补齐字段后升级为强校验 |
+| P8-4 | WCS 转换为标准格式投递 MQ Topic `wcs.tote.inventory.snapshot`，**按接收批次投递**；`snapshotDate`（按接收日期）、`batchSeq`、`isLast` 当前**由 WCS 生成**，海柔补齐后改为透传 |
 | P8-5 | WCS 记录每日快照执行情况到 `wcs_tote_snapshot_job`（日期、期望条数、实收条数、投递条数、状态） |
 | P8-6 | **兜底对账**：每日 **07:30** 定时检查当日快照是否完整；未收到或缺页 → **飞书告警**，支持运维后台触发重收/重投 |
 | P8-7 | MQ 投递失败按 §6.10 重试（共 4 次调用），仍失败 → 飞书告警 |
 | P8-8 | 快照数据 WCS **落库保留 7 天**（仅用于重投与排查），不做业务加工 |
-| P8-9 | 快照字段以《飞箱库存快照》文档为准，见 §7.6 |
+| P8-9 | 快照字段以海柔接口 14 为准，映射见 §7.4 映射 8；与《飞箱库存快照》报表字段的差异需与数据湖同学确认 |
 | P8-10 | 适用范围：**仅台州海柔**，立镖不涉及 |
 
 **验收标准**：
-- ✅ 海柔分 5 页推送 2,300 条，数据湖收到 2,300 条，无重复无丢失
-- ✅ 中间某页推送失败重推：WCS 幂等（按 `snapshotDate + pageNo`），数据湖不产生重复
+- ✅ 海柔分批推送 2,300 条，数据湖收到 2,300 条，无重复无丢失
+- ✅ 中间某批推送失败重推：WCS 按 `idempotentCode` 幂等，数据湖不产生重复
 - ✅ 当日未收到快照：07:30 飞书告警触发
 - ✅ MQ 消息可通过 `snapshotDate` 完整回溯
 
@@ -970,75 +984,62 @@ traceId：{traceId}
 
 ## 7. 接口设计
 
-> ⚠️ **重要说明**：《台州飞箱（WCS-海柔接口）》飞书表格未纳入本次输入范围，因此 **WCS ↔ 海柔 侧的字段以该接口清单为最终准绳**，本文给出的是**WCS 对内（WMS 侧）的标准契约**与厂商侧的映射占位。评审时需与海柔接口清单逐项对齐，见 §12 Q2。
+> **本节已按《台州飞箱（WCS-海柔接口）》接口清单（2026-09-22 计划联通性测试版）逐字段核对并重写。**
+> 清单中的 **WHC 即本文的 WCS**——清单里"WMS→WHC→设备"就是"WMS→WCS→海柔"。清单的 **WHC 列（接口访问地址）目前全部空白，这部分正是 WCS 需要定义并回填给海柔与 WMS 的**，本节 §7.3 给出定义。
+> 核对中发现的 12 处问题与对接需求见 **§7.7**，需要在评审会上与海柔、WMS 一起过。
 
-### 7.1 接口清单
+### 7.1 接口清单（对齐海柔清单，共 15 个）
 
-#### ① WMS → WCS（WCS 提供）
+清单口径：店后仓使用 15 个，另有 10 个（盘点、调整单、补货通知、关闭回传、库存对账等）店后仓不使用，WCS 1 期不实现。
 
-| 编码 | 接口名称 | 方法 | 路径 | 同步/异步 | 是否落库 |
-|---|---|---|---|---|---|
-| I-01 | 上机商品主数据推送 | POST | `/wcs/api/v1/item/sync` | 同步透传 | 仅报文流水 |
-| I-02 | 飞箱实时库存查询 | POST | `/wcs/api/v1/inventory/query` | 同步透传 | 仅报文流水 |
-| I-03 | 补货上架任务下发 | POST | `/wcs/api/v1/task/replenish/create` | 同步受理 | 是 |
-| I-04 | 移出下架任务下发 | POST | `/wcs/api/v1/task/moveout/create` | 同步受理 | 是 |
-| I-05 | 拣货出库任务下发 | POST | `/wcs/api/v1/task/pick/create` | 同步受理 | 是 |
-| I-06 | 任务取消 | POST | `/wcs/api/v1/task/cancel` | 同步返回结果 | 是 |
-| I-07 | 任务状态查询（排查用） | POST | `/wcs/api/v1/task/query` | 同步 | 否 |
+| 海柔# | 接口名称 | 数据流向 | 海柔优先级 | 变动类型 | WCS 1 期 | WCS 内部编号 |
+|---|---|---|---|---|---|---|
+| 1 | 基础-商品信息同步 | WMS→WCS→海柔 | P0 | 字段调增 | ✅ 透传 | I-01 |
+| 2 | 基础-商品信息拉取 | 海柔→WCS→WMS | P2（待定） | 新增 | ❌ 不做 | — |
+| 3 | 上架任务下发 | WMS→WCS→海柔 | P0 | 字段调增 | ✅ | I-03 |
+| 4 | 上架任务取消 | WMS→WCS→海柔 | P0 | 字段调增 | ✅ | I-06a |
+| 5 | 上架任务按箱回传 | 海柔→WCS→WMS | **P2** | 字段调增 | ⚠️ 见 §7.7-R3 | V-01 |
+| 6 | 上架任务结果回传（按单） | 海柔→WCS→WMS | P0 | 新增 | ✅ | V-02 |
+| 7 | 出库单下发 | WMS→WCS→海柔 | P0 | 字段调增 | ✅ | I-04 / I-05 |
+| 8 | 出库单取消 | WMS→WCS→海柔 | P0 | 字段调增 | ✅ 见 §7.7-R2 | I-06b |
+| 9 | 出库单按容器回传 | 海柔→WCS→WMS | P0 | 字段调增 | ✅ | V-03 |
+| 10 | 出库拣货完成回传（按单） | 海柔→WCS→WMS | P0 | 新增 | ✅ | V-04 |
+| 11 | 预占拣货异常上报 | 海柔→WCS→WMS | P0 | 新增 | ✅（即库存不足） | V-05 |
+| 12 | 周转容器状态查询 | WMS→WCS→海柔（清单方向标注有误，见 §7.7-R1） | P2 | 新增 | ⏸ 建议 1 期做（透传，成本低） | I-07 |
+| 13 | 商品容器规格装箱件数 | 海柔→WCS→WMS | P2 | 新增 | ⏸ 建议 1 期做（透传） | V-06 |
+| 14 | 每日料箱库存快照 | 海柔→WCS→数据湖 | P0 | 新增 | ✅ | V-07 |
+| 15 | 库存-查询商品库存 | WMS→WCS→海柔 | P0 | 字段调整 | ✅ 透传 | I-02 |
 
-#### ② WCS → WMS（**WMS 按本文标准契约实现**，回调地址按仓配置）
+**三条对齐后必须修正的设计（相对本文 v1.1）：**
 
-> **已确认**：这 5 个回传接口由 WMS 按 WCS 定义的标准契约新建，不由 WCS 去适配 WMS 的存量接口。否则换厂商/加仓店时 WMS 仍需改造，标准化目标落空。
-
-| 编码 | 接口名称 | 方法 | 触发时机 |
+| # | v1.1 的写法 | 接口清单实际 | 本版修正 |
 |---|---|---|---|
-| I-08 | 任务受理结果回传 | POST | 厂商 ACK / 拒绝受理 / WCS 下发失败 |
-| I-09 | 任务执行结果回传 | POST | 厂商回传上架/拣货/下架结果（可分批） |
-| I-10 | 容器分配结果回传 | POST | 厂商回传容器分配 |
-| I-11 | 库存不足回传 | POST | 厂商回传缺货明细 |
-| I-12 | 取消结果回传（异步补偿） | POST | 同步取消响应未达 WMS 时补推 |
+| M1 | 移出任务有独立下发接口 | **没有独立移出接口**。接口 7 出库单下发用 `outbound_order_type` 区分：`SALE` 出库、`MOVE` 移库下架 | WCS 对内仍保留 I-04（移出）/ I-05（拣货）两个语义接口，Adapter 统一映射到海柔 `OUTBOUND_ORDER_CREATE`，靠 `outbound_order_type` 区分。**这正是适配层的价值** |
+| M2 | 海柔有独立"任务受理回执"异步接口 | **没有**。下发接口是**同步返回** `returnCode`/`code`/`message` | 状态机 `INIT→DISPATCHED` 由**同步响应**驱动，不等异步回执；WCS→WMS 的受理结果回传（I-08）保留，由该同步响应触发 |
+| M3 | 有独立"容器分配结果"回传接口 | **没有**。容器信息随接口 9（按容器回传）与接口 10（`container_list`）一起回传 | WCS 从 V-03 / V-04 报文中提取容器信息，转发 I-10 给 WMS |
 
-#### ③ WCS → 海柔（海柔提供）
+### 7.2 报文规范
 
-| 编码 | 接口名称 | 对应 WCS 上游 |
-|---|---|---|
-| V-01 | 商品主数据接收 | I-01 |
-| V-02 | 库存查询 | I-02 |
-| V-03 | 任务创建（补货/拣货/移出统一或分接口，以海柔清单为准） | I-03/I-04/I-05 |
-| V-04 | 任务取消 | I-06 |
+WCS 处在两套协议之间，**两侧规范不同，由适配层隔离**：
 
-#### ④ 海柔 → WCS（WCS 提供）
-
-| 编码 | 接口名称 | 方法 | 路径 |
+| 方向 | 协议 | 报文规范 | 鉴权 |
 |---|---|---|---|
-| V-05 | 任务受理回执 | POST | `/wcs/api/v1/vendor/{vendorCode}/task/accept` |
-| V-06 | 任务执行结果回传 | POST | `/wcs/api/v1/vendor/{vendorCode}/task/report` |
-| V-07 | 容器分配结果回传 | POST | `/wcs/api/v1/vendor/{vendorCode}/task/container` |
-| V-08 | 库存不足回传 | POST | `/wcs/api/v1/vendor/{vendorCode}/task/shortage` |
-| V-09 | 料箱库存快照推送 | POST | `/wcs/api/v1/vendor/{vendorCode}/tote/snapshot` |
+| WMS ↔ WCS | HTTP POST + JSON | **WCS 标准契约**（§7.2.1） | AK/SK + HMAC 签名（§8.4） |
+| WCS ↔ 海柔 | HTTP POST + JSON | **海柔 WHC 协议信封**（§7.2.2） | 签名认证 / AccessToken（海柔规范） |
 
-#### ⑤ WCS → 数据湖（MQ）
+#### 7.2.1 WCS 对内标准报文（WMS ↔ WCS）
 
-| 编码 | Topic | 内容 | 频率 |
-|---|---|---|---|
-| M-01 | `wcs.tote.inventory.snapshot` | 料箱库存快照 | 每日 1 次 |
-
-### 7.2 统一报文规范
-
-**技术选型**：Java + Spring Boot，全部接口 **HTTP / REST + JSON**（`Content-Type: application/json;charset=UTF-8`）。
-
-**统一请求头**：
+请求头：
 
 | Header | 必填 | 说明 |
 |---|---|---|
 | `X-App-Key` | Y | 调用方应用标识 |
-| `X-Timestamp` | Y | 请求时间戳（毫秒），有效期 **5 分钟** |
-| `X-Nonce` | Y | 随机串，防重放（Redis 缓存 5 分钟） |
+| `X-Timestamp` | Y | 请求时间戳（毫秒），有效期 5 分钟 |
+| `X-Nonce` | Y | 随机串，防重放 |
 | `X-Sign` | Y | 签名，见 §8.4 |
 | `X-Trace-Id` | N | 调用方 traceId；未传则 WCS 生成 |
-| `X-Warehouse-Code` | N | 仓库号（便于网关层路由与限流） |
 
-**统一响应体**：
+响应体：
 
 ```json
 {
@@ -1050,7 +1051,7 @@ traceId：{traceId}
 }
 ```
 
-**统一返回码**：
+统一返回码：
 
 | code | 含义 | 说明 |
 |---|---|---|
@@ -1061,159 +1062,394 @@ traceId：{traceId}
 | `1004` | `WCS_TASK_NOT_FOUND` | 任务不存在 |
 | `1005` | `WCS_TASK_STATUS_ILLEGAL` | 任务状态不允许该操作 |
 | `1006` | `WCS_CANCEL_NOT_SUPPORT` | 该任务类型不支持取消 |
-| `2001` | `WCS_VENDOR_BIZ_FAILED` | 厂商返回业务失败（`data.vendorCode`/`vendorMsg` 带厂商原文） |
+| `2001` | `WCS_VENDOR_BIZ_FAILED` | 厂商返回业务失败，`data` 带海柔 `code`/`message` 原文 |
 | `2002` | `WCS_VENDOR_TIMEOUT` | 调用厂商超时 |
 | `2003` | `WCS_VENDOR_UNAVAILABLE` | 厂商服务不可用 |
 | `9999` | `WCS_SYSTEM_ERROR` | 系统异常 |
 
-> **规范**：凡厂商返回失败，WCS 一律在 `data` 中携带 `vendorCode` / `vendorMsg` **厂商原文**，不做二次翻译，保证现场可排查。
+#### 7.2.2 海柔 WHC 协议信封（WCS ↔ 海柔，以接口清单为准）
 
-### 7.3 关键接口定义
+**请求信封**（所有接口一致，业务参数放 `param`）：
+
+```json
+{
+  "param": {
+    "warehouseId": 0,
+    "idempotentCode": "",
+    "invokeFrom": "",
+    "targetSystem": "",
+    "<业务字段>": "..."
+  },
+  "appName": "具体的AppName",
+  "format": "json",
+  "sign": "签名字符串",
+  "source": "具体的AppName",
+  "version": "1.0.0",
+  "timestamp": "当前时间戳"
+}
+```
+
+请求头额外带：`accessToken: 具体token`
+
+**响应信封**：
+
+```json
+{
+  "traceId": "",
+  "result": {},
+  "returnCode": "",
+  "code": "",
+  "appName": "",
+  "responseTime": 0,
+  "message": ""
+}
+```
+
+**信封公共字段的 WCS 落位**：
+
+| 海柔字段 | 类型 | 必填 | WCS 如何取值 |
+|---|---|---|---|
+| `warehouseId` | Number | Y | 由 `wcs_vendor_route` 按 `warehouse_code` 配置映射（海柔侧数字仓库 ID），**新增路由表字段 `vendor_warehouse_id`** |
+| `warehouse_code` | String | Y | 直接取 `wcs_task.warehouse_code`（如需码值转换，走路由表映射） |
+| `owner_code` | String | Y | 货主，**全接口必填**。`wcs_task` 新增 `owner_code` 字段，由 WMS 下发时传入 |
+| `idempotentCode` | String | Y | **幂等号**。WCS→海柔 用 `wcs_task_no`（取消用 `wcs_task_no + ":CANCEL"`）；海柔→WCS 用海柔生成值，**作为 WCS 侧幂等键**（替代 v1.1 里的 `vendorMsgId`） |
+| `invokeFrom` | String | Y | 固定 `WCS`（具体取值需与海柔约定，见 §7.7-R8） |
+| `targetSystem` | String | Y | 固定海柔系统标识（同上） |
+| `appName` / `source` | String | Y | 海柔分配给 WCS 的 AppName |
+| `sign` | String | Y | 按海柔签名规则生成 |
+| `timestamp` | String | Y | 当前时间戳 |
+| `traceId`（响应） | String | — | **落 `wcs_message_log.ext`，与 WCS 自身 traceId 一并记录，跨系统排查用** |
+
+### 7.3 接口定义
+
+#### ① WMS → WCS（WCS 提供，本文定义）
+
+| 编码 | 接口名称 | 路径 | 对应海柔接口 | 落库 |
+|---|---|---|---|---|
+| I-01 | 上机商品主数据推送 | `POST /wcs/api/v1/item/sync` | 1 `/WES/OPEN/SKU_CREATE` | 仅报文流水 |
+| I-02 | 飞箱实时库存查询 | `POST /wcs/api/v1/inventory/query` | 15 `/plugin/stock/query/skuLot` | 仅报文流水 |
+| I-03 | 补货上架任务下发 | `POST /wcs/api/v1/task/replenish/create` | 3 `/WES/OPEN/ORDER_INBOUND_CREATE` | 是 |
+| I-04 | 移出下架任务下发 | `POST /wcs/api/v1/task/moveout/create` | 7 `/WES/OPEN/OUTBOUND_ORDER_CREATE`（`outbound_order_type=MOVE`） | 是 |
+| I-05 | 拣货出库任务下发 | `POST /wcs/api/v1/task/pick/create` | 7 同上（`outbound_order_type=SALE`） | 是 |
+| I-06 | 任务取消 | `POST /wcs/api/v1/task/cancel` | 上架→4 `/WES/OPEN/ORDER_INBOUND_CANCEL`；出库/移出→8 `/wrm/outbound/cancel` | 是 |
+| I-07 | 周转容器状态查询 | `POST /wcs/api/v1/container/status/query` | 12（透传） | 仅报文流水 |
+| I-99 | 任务状态查询（排查用） | `POST /wcs/api/v1/task/query` | — | 否 |
+
+#### ② WCS → WMS（**WMS 按本文标准契约实现**，回调地址按仓配置）
+
+> **已确认**：这些回传接口由 WMS 按 WCS 定义的标准契约新建，不由 WCS 去适配 WMS 的存量接口。
+
+| 编码 | 接口名称 | 触发来源 |
+|---|---|---|
+| I-08 | 任务受理结果回传 | 海柔下发接口的**同步响应**（成功 / 业务失败）；或 WCS 重试 4 次仍失败 |
+| I-09 | 任务执行结果回传 | 海柔 5 / 6 / 9 / 10 号接口 |
+| I-10 | 容器分配结果回传 | 从海柔 9 / 10 号接口报文中提取容器信息 |
+| I-11 | 库存不足回传 | 海柔 11 号接口（预占拣货异常上报） |
+| I-12 | 取消结果回传（异步补偿） | 同步取消响应未达 WMS 时补推 |
+| I-13 | 商品容器规格装箱件数回传 | 海柔 13 号接口（透传） |
+
+#### ③ 海柔 → WCS（**WCS 提供，需回填到接口清单的 WHC 列**）
+
+| 编码 | 接口名称 | 路径（WCS 定义） | 海柔# |
+|---|---|---|---|
+| V-01 | 上架任务按箱回传 | `POST /wcs/api/v1/vendor/hairou/receipt/container-report` | 5 |
+| V-02 | 上架任务结果回传（按单） | `POST /wcs/api/v1/vendor/hairou/receipt/order-report` | 6 |
+| V-03 | 出库单按容器回传 | `POST /wcs/api/v1/vendor/hairou/outbound/container-report` | 9 |
+| V-04 | 出库拣货完成回传（按单） | `POST /wcs/api/v1/vendor/hairou/outbound/order-report` | 10 |
+| V-05 | 预占拣货异常上报 | `POST /wcs/api/v1/vendor/hairou/outbound/shortage-report` | 11 |
+| V-06 | 商品容器规格装箱件数 | `POST /wcs/api/v1/vendor/hairou/container/spec-report` | 13 |
+| V-07 | 每日料箱库存快照 | `POST /wcs/api/v1/vendor/hairou/tote/snapshot` | 14 |
+
+#### ④ WCS → 数据湖（MQ）
+
+| 编码 | Topic | 内容 | 频率 |
+|---|---|---|---|
+| M-01 | `wcs.tote.inventory.snapshot` | 料箱库存快照（源自 V-07） | 每日 1 次，07:00 |
+
+### 7.4 字段映射表（WCS 标准模型 ↔ 海柔）
+
+> 以下按接口逐个给出。海柔字段名与类型取自接口清单；"WCS 来源"列即 Adapter 的转换规则。
+
+#### 映射 1 — 商品主数据同步（I-01 → 海柔 1）
+
+WCS 纯透传，字段由 WMS 提供，Adapter 只做命名转换与信封封装。
+
+| 海柔字段 | 类型 | 必填 | 含义 | 备注 |
+|---|---|---|---|---|
+| `sku_code` | String | Y | 商品编码 | 主 PRD 的"商品号 item" |
+| `sku_name` | String | Y | 商品名称 | |
+| `warehouse_code` | String | Y | 仓库 | 主 PRD 的"门店号" |
+| `owner_code` | String | Y | 货主 | |
+| `bar_code_list[].bar_code` | String | Y | 商品条码 | **支持一 item 多条码**，与主 PRD 一致 |
+| `length` / `width` / `height` | Number | Y/N/Y | 长 / 宽 / 高 | `width` 清单标为非必填，见 §7.7-R6 |
+| `gross_weight` | Number | Y | 毛重 | 主 PRD 的"重" |
+| `net_weight` | Number | N | 净量 | |
+| `volume` | Number | N | 体积 | |
+| `shelf_life` | Number | Y | 保质期天数 | 主 PRD 要求字段 |
+| `division` | String | Y | 商品类型 | 枚举 `DG1`/`DG2`/`DG3`/`XC1` 等，台州海柔新增 |
+| `pic_url` / `inner_pic_url` | String | N | 图片地址 / 内网图片地址 | |
+| **`is_agv`** | String | **Y** | **是否上机（Y/N）** | **这就是"上机商品推送"的落点**，下发海柔必填 |
+| `category` | String | N | 部门号 | |
+| `delist_date` | String | N | 下架日期 | |
+| `is_need_exp_manage` | Number | Y | 是否需要效期管理 | |
+| `is_expensive` / `is_fragile` / `is_sequence_sku` | Number | N | 是否贵重 / 易碎 / 序列号商品 | |
+| `unit` / `item_size` / `item_style` / `item_color` / `remark` | String | N | 基本单位 / 大小 / 款式 / 颜色 / 备注 | |
+
+> 单次推送单个 SKU，**只有成功或失败**（清单原文）。条码解析规则（21 开头自制品保留、其余去校验位）由 **WMS 侧完成**，WCS 不解析。
+
+#### 映射 2 — 补货上架任务下发（I-03 → 海柔 3）
+
+| 海柔字段 | 类型 | 必填 | WCS 来源 |
+|---|---|---|---|
+| `receipt_code` | String | Y | `wcs_task.wcs_task_no`（上架单号，海柔侧业务主键） |
+| `orig_note` | String | Y | `wcs_task.source_task_no`（源单据 = WMS 补货通知单号，**需在海柔界面展示**） |
+| `orig_note_line_no` | String | N | `wcs_task_detail.line_no` |
+| `warehouse_code` | String | Y | `wcs_task.warehouse_code` |
+| `owner_code` | String | Y | `wcs_task.owner_code` |
+| **`type`** | Number | Y | 入库类型。**补货固定传 `4`（replenishment 补货入库单）**。枚举：0=inbound1，1=inbound2，2=returnBack 返仓，3=normal 普通，4=replenishment 补货 |
+| `remark` | String | N | `wcs_task.ext_json.remark` |
+| `sku_list[].sku_code` | String | Y | `wcs_task_detail.item_code` |
+| `sku_list[].sku_name` | String | N | 由 WMS 传入 |
+| `sku_list[].amount` | Number | Y | `wcs_task_detail.plan_qty`（单位 `EA`） |
+| `sku_list[].line_no` | Number | N（海柔必传） | `wcs_task_detail.line_no`，见 §7.7-R6 |
+| `sku_list[].out_batch_code` | String | N（海柔必传） | `wcs_task_detail.batch_no` |
+| `sku_list[].container_code` | String | N（海柔必传，托盘号） | `wcs_task_detail.carrier_code` |
+| `sku_list[].production_date` | String | N | 生产日期 `yyyy-MM-dd` |
+| `sku_list[].expiration_date` | String | Y | `wcs_task_detail.expire_date`，`yyyy-MM-dd` |
+| `sku_list[].inbound_date` | date | N（海柔必传） | 入库日期 `yyyy-MM-dd` |
+| `sku_list[].sku_level` | Number | N | 商品等级（海柔标注"质量状态？"，见 §7.7-R7） |
+
+> 一次一个单，**只有成功或失败**（清单原文）——因此 WCS 的下发不做部分成功处理，同步响应即终局，直接驱动 `DISPATCHED` / `FAILED`。
+
+#### 映射 3 — 出库/移出任务下发（I-04、I-05 → 海柔 7）
+
+| 海柔字段 | 类型 | 必填 | WCS 来源 |
+|---|---|---|---|
+| `out_order_code` | String | Y | `wcs_task.wcs_task_no`（WMS 单号，业务主键） |
+| `orig_note` | String | Y | `wcs_task.source_task_no`（源单据，传 app 渠道单号） |
+| **`outbound_order_type`** | String | Y | **`task_type` 映射：`OUTBOUND_PICK`→`SALE`；`MOVE_OUT`→`MOVE`** |
+| `warehouse_code` | String | Y | `wcs_task.warehouse_code` |
+| `inbound_warehouse_code` | String | Y | 收货仓库编码（云仓），由 WMS 传入 |
+| `owner_code` | String | Y | `wcs_task.owner_code` |
+| `orig_plantform_code` | String | N | 订单来源平台编码（母店号） |
+| `shop_code` / `out_wave_code` | String | N | 店铺编码 / 波次号 → `ext_json` |
+| `priority` | Number | N | `wcs_task.priority` |
+| `customer_create_time` / `wh_end_time` | String | N | 下单时间 / 截单时间 |
+| `carrier_code` | String | N | 承运商编码（01 京东 / 04 自有物流 / 16 顺丰）。**注意与明细的载具 `carrier_code` 同名不同义，见 §7.7-R5** |
+| `big_order` / `pre_sale` | String | N | 是否大单 / 是否预售（Y/N） |
+| `order_channel` | String | N | 订单渠道（1 全城配 / 2 全国配） |
+| `sku_list[].sku_code` / `sku_name` | String | Y/N | `wcs_task_detail.item_code` |
+| `sku_list[].amount` | Number | Y | `wcs_task_detail.plan_qty` |
+| `sku_list[].line_no` | Number | Y | `wcs_task_detail.line_no` |
+| `sku_list[].out_batch_code` | String | N | `wcs_task_detail.batch_no` |
+
+#### 映射 4 — 任务取消（I-06 → 海柔 4 / 8）
+
+WCS 按 `task_type` 分派到两个海柔接口：
+
+| WCS 任务类型 | 海柔接口 | 关键字段 |
+|---|---|---|
+| `INBOUND_PUTAWAY` | 4 `/WES/OPEN/ORDER_INBOUND_CANCEL` | `receipt_code`、`orig_note`、`warehouse_code`、`owner_code`、`remark` |
+| `OUTBOUND_PICK` / `MOVE_OUT` | 8 `/wrm/outbound/cancel` | `out_order_code`、`orig_note`、`warehouse_code`、`owner_code`、`cancel_date`、`remark` |
+
+**取消响应（两接口一致，同步返回）→ WCS 状态判定**：
+
+| 海柔响应字段 | 含义 | WCS 处理 |
+|---|---|---|
+| `operation_result` | Number，取消结果 | **成功值需海柔明确，见 §7.7-R4**。成功 → `CANCELLED`；失败 → 回滚原状态 + 飞书告警 |
+| `error_message` | String，错误信息 | 原文回传 WMS，不做二次翻译 |
+| `cancel_date` | 取消时间 | 落 `wcs_task.finish_time` |
+
+> **同步返回取消结果**，与 §6.4"以厂商取消结果为准、结果必达 WMS"的设计完全吻合，无需异步等待。
+
+#### 映射 5 — 上架结果回传（海柔 5 / 6 → I-09）
+
+**海柔用两个接口表达"分批"与"完结"，没有 `isFinished` 字段**，WCS 据接口来源归一：
+
+| 海柔接口 | 语义 | WCS `result_type` | `is_finished` | 主表状态 |
+|---|---|---|---|---|
+| 5 按箱回传（P2） | 中间批次，一个订单可多次回传 | `EXECUTE` | 0 | `EXECUTING` |
+| 6 按单回传（P0） | 整单完结 | `FINISH` | 1 | 判定终态 |
+
+接口 6 关键字段 → WCS 终态判定：
+
+| 海柔字段 | 含义 | WCS 用途 |
+|---|---|---|
+| `receipt_code` | 上架单号/事务号 | 关联 `wcs_task_no` |
+| `plan_sku_amount` | 计划入库商品总数 | 与实际对比 |
+| `sku_amount` | 实际入库商品总数 | **`sku_amount >= plan_sku_amount` → `SUCCESS`；`0 < sku_amount < plan_sku_amount` → `PARTIAL_DONE` + 飞书告警；`=0` → `FAILED`** |
+| `receipt_status` | 异常标识 | 异常时记录并告警 |
+| `status` | 上架单状态 | 落 `ext_json`，枚举待海柔提供（§7.7-R4） |
+| `receiptor` | 上架人（登录名） | `wcs_task.operator` |
+| `start_time` / `completion_time` | 上架开始 / 完成时间 | `wcs_task.operate_time`（**真实作业时间，非传输时间**） |
+| `workstation_no` | 工作站号 | `ext_json` |
+| `sku_list[].sku_code` / `amount` / `item`(行号) | 明细 | 回写 `wcs_task_detail.done_qty` |
+| `sku_list[].out_batch_code` / `expiration_date` | 批次 / 效期 | 明细回写 |
+
+接口 5（按箱）额外字段：`container_code`（箱号）→ `wcs_task_detail.carrier_code`；`doc_no`（单号）、`order_type`、`workstation_no`、`receiptor`、`completion_time`。
+
+#### 映射 6 — 出库结果回传（海柔 9 / 10 → I-09、I-10）
+
+| 海柔接口 | 语义 | WCS `result_type` | `is_finished` |
+|---|---|---|---|
+| 9 按容器回传 | 容器维度进度 + 容器信息 | `EXECUTE` + `CONTAINER` | 0 |
+| 10 拣货完成回传（按单） | 整单完结 | `FINISH` | 1 |
+
+接口 9 关键字段：
+
+| 海柔字段 | 含义 | WCS 用途 |
+|---|---|---|
+| `out_order_code` / `orig_note` | 出库单号 / 源单号 | 关联任务 |
+| `order_box_no` | **订单容器（周转容器）** | → I-10 `containers[].containerCode` |
+| `container_status` | 1 容器关闭 / 2 容器出库 | → I-10 `containers[].status` |
+| `outbound_pick_type` | 作业模式：1 单品 / 2 非单品 | `ext_json` |
+| `workstation_no` / `picker` / `close_time` | 工作站 / 拣货人 / 关箱时间 | `operator`、`operate_time` |
+| `sku_list[].quantity` / `line_no` / `sku_code` | 出库明细 | 回写 `done_qty` |
+| `sku_list[].outbound_order_type` | `SALE` / `MOVE` | 校验与任务类型一致 |
+
+接口 10 关键字段 → 终态判定与容器信息：
+
+| 海柔字段 | 含义 | WCS 用途 |
+|---|---|---|
+| `plan_sku_amount` | 计划商品总数量 | 终态判定基准 |
+| `pickup_sku_amount` | 实际拣货商品总数量 | **判定 `SUCCESS` / `PARTIAL_DONE` / `FAILED`** |
+| **`lack_flag`** | **缺发标识** | 为真时强制判 `PARTIAL_DONE` 并飞书告警 |
+| `container_amount` | 容器数 | → I-10 |
+| `container_list[].container_code` | 容器编码 | → I-10 `containers[].containerCode` |
+| `container_list[].seeding_bin_code` | 格口号 | → I-10 `containers[].slotNo` |
+| `container_list[].pallet_code` | 码放托盘号 | → I-10 `containers[].palletCode` |
+| `wall_code` | 播种墙号 | → I-10 `containers[].wallCode` |
+| `picker` / `start_time` / `finish_date` | 拣货人 / 开始 / 完成时间 | `operator`、`operate_time` |
+| `status` | 状态 | `ext_json`，枚举待提供 |
+
+#### 映射 7 — 预占拣货异常上报 = 库存不足（海柔 11 → I-11）
+
+| 海柔字段 | 类型 | 必填 | WCS 处理 |
+|---|---|---|---|
+| `outbound_order_no` | String | Y | 关联 `wcs_task`（**注意：此处字段名与接口 9/10 的 `out_order_code` 不一致，见 §7.7-R5**） |
+| `warehouse_code` | String | Y | 校验路由 |
+| `sku_code` | String | Y | 定位明细行 |
+| **`business_type`** | String | Y | **少货环节：分配 / 拣选**。原样透传 WMS，并进入告警内容 |
+| `quantity` | Number | Y | 少货数量 → `wcs_task_detail.shortage_qty`（**累加**） |
+| `operator` | String | — | 操作人（示例报文有，字段表未列，见 §7.7-R6） |
+| `remark` | String | N | 备注 |
+| `idempotentCode` | String | Y | **WCS 幂等键** |
+
+> **注意**：海柔只给"少货数量 `quantity`"，**没有"飞箱可用数量"**。因此 WCS 回传 WMS 的 I-11 中 `availableQty` 改为可选，由 `planQty - 累计shortageQty` 推算，并在字段说明中标注为推算值。
+
+#### 映射 8 — 每日料箱库存快照（海柔 14 → M-01）
+
+| 海柔字段 | 类型 | 必填 | 含义 |
+|---|---|---|---|
+| `container_code` | String | Y | 容器（料箱）编号 |
+| `sku_code` | String | Y | 商品编码 |
+| `sku_name` | String | N | 商品名称 |
+| `division` | Number | N | 商品分类 |
+| `expiration_date` | String | N | 失效日期 |
+| `sku_quantity` | Number | Y | 装箱数量 |
+| `frozen_quantity` | Number | Y | 冻结数量 |
+
+> **缺口（重要）**：该接口**没有 `snapshotDate`（快照日期）、没有分页字段、没有总条数**，WCS 无法判断"当日快照是否收齐"，也无法承接大批量一次性推送。这是 §6.8 兜底对账设计的前提被打破。**必须作为对接需求提给海柔，见 §7.7-R9。**
+
+#### 映射 9 — 库存查询（I-02 → 海柔 15）
+
+| 海柔字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| 入参 `warehouse_code` | String | Y | 仓库 |
+| 入参 `sku_list[].sku_code` / `owner_code` | String | Y | **待查商品明细必填**——不支持不传商品号的全量查询 |
+| 入参 `sku_list[].out_batch_code` | String | N | WMS 批次号 |
+| 入参 `current_page` / `page_size` | Number | Y | **分页必填**，页码从 1 开始 |
+| 出参 `sku_list[].amount` / `sku_code` / `out_batch_code` / `owner_code` | — | — | 库存明细 |
+| 出参 `total_num` / `current_page` / `page_size` | Number | — | 分页信息 |
+
+> 这修正了本文 v1.1 §6.2 "商品号为空时查询全量"的写法——**海柔不支持全量查询，且必须分页**。WCS 透传时原样传递分页参数与结果。
+
+#### 映射 10 — 周转容器状态查询（I-07 → 海柔 12）
+
+入参 `container_code`；出参 `is_active`（是否可用）、`remark`。纯透传。
+
+#### 映射 11 — 商品容器规格装箱件数（海柔 13 → I-13）
+
+`sku_code`、`sku_name`、`sku_length/width/height`、`sku_quantity`（装箱数量）、`container_type`（容器规格）、`container_length/width/height`、`update_time`。纯透传给 WMS。
+
+### 7.5 WCS 对内接口关键字段
 
 #### I-03 补货上架任务下发（WMS → WCS）
-
-**请求**：
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | `sourceSystem` | String | Y | 固定 `WMS_INNER` |
-| `sourceTaskNo` | String | Y | WMS 补货上架单号（**幂等键之一**） |
-| `sourceBizNo` | String | N | 上游业务单号 |
+| `sourceTaskNo` | String | Y | WMS 补货通知单号（**幂等键之一**，映射海柔 `orig_note`） |
 | `warehouseCode` | String | Y | 门店号/仓库号（**路由依据**） |
+| `ownerCode` | String | Y | **货主**（海柔全接口必填，v1.1 遗漏，本版新增） |
 | `taskType` | String | Y | 固定 `INBOUND_PUTAWAY` |
+| `inboundType` | Integer | N | 入库类型，默认 `4`（补货入库单） |
 | `priority` | Integer | N | 优先级，默认 100 |
-| `fromLocation` | String | N | 源储区，如 `STAGING`（暂存区） |
-| `toLocation` | String | N | 目标储区，如 `FX` |
-| `expectFinishTime` | String | N | 期望完成时间 `yyyy-MM-dd HH:mm:ss` |
-| `operator` | String | N | WMS 侧操作人 |
-| `details` | Array | Y | 明细，≥1 行 |
 | `details[].lineNo` | Integer | Y | 行号 |
 | `details[].itemCode` | String | Y | 商品号 |
-| `details[].upc` | String | N | 商品条码 |
 | `details[].planQty` | Number | Y | 计划数量，> 0 |
-| `details[].batchNo` | String | N | 批次号 |
-| `details[].expireDate` | String | N | 效期 `yyyy-MM-dd` |
-| `details[].ext` | Object | N | 扩展字段 |
+| `details[].uom` | String | N | 单位，默认 `EA` |
+| `details[].batchNo` | String | N | WMS 批次号 |
+| `details[].expireDate` | String | Y | 到期日期 `yyyy-MM-dd`（海柔必填） |
+| `details[].productionDate` | String | N | 生产日期 `yyyy-MM-dd` |
+| `details[].inboundDate` | String | N | 入库日期 `yyyy-MM-dd`（海柔必传） |
+| `details[].carrierCode` | String | N | 载具/托盘号（海柔必传） |
 
-**响应 `data`**：
+响应 `data`：`wcsTaskNo`、`status`、`duplicated`。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `wcsTaskNo` | String | WCS 任务号 |
-| `status` | String | 受理后状态，正常为 `INIT` |
-| `duplicated` | Boolean | 是否为幂等命中的重复请求 |
+#### I-05 拣货出库任务下发（WMS → WCS）
 
-**请求示例**：
-
-```json
-{
-  "sourceSystem": "WMS_INNER",
-  "sourceTaskNo": "RP20261012000123",
-  "warehouseCode": "TZ001",
-  "taskType": "INBOUND_PUTAWAY",
-  "fromLocation": "STAGING",
-  "toLocation": "FX",
-  "operator": "zhangsan",
-  "details": [
-    { "lineNo": 1, "itemCode": "980012345", "upc": "6901234567892", "planQty": 24 },
-    { "lineNo": 2, "itemCode": "980012346", "upc": "6901234567893", "planQty": 12 }
-  ]
-}
-```
-
-#### I-06 任务取消（WMS → WCS）
-
-**请求**：
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `sourceSystem` | String | Y | 来源系统 |
-| `sourceTaskNo` | String | Y | WMS 单号（与 `wcsTaskNo` 二选一） |
-| `wcsTaskNo` | String | N | WCS 任务号 |
-| `warehouseCode` | String | Y | 仓库号 |
-| `cancelReason` | String | N | 取消原因 |
-| `operator` | String | N | 操作人 |
-
-**响应 `data`**：
-
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `wcsTaskNo` | String | WCS 任务号 |
-| `cancelResult` | String | `SUCCESS` / `FAILED` |
-| `taskStatus` | String | 取消后任务状态 |
-| `failReason` | String | 失败原因（厂商原文） |
+在 I-03 基础上：`taskType=OUTBOUND_PICK`、`inboundWarehouseCode`（收货仓库编码/云仓，必填）、`origPlatformCode`（母店号）、`shopCode`、`waveNo`、`carrierCode`（承运商，01/04/16）、`bigOrder`、`preSale`、`orderChannel`。
+`I-04` 移出任务同结构，`taskType=MOVE_OUT`。
 
 #### I-09 任务执行结果回传（WCS → WMS）
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `wcsTaskNo` | String | Y | WCS 任务号 |
-| `sourceTaskNo` | String | Y | WMS 单号 |
-| `warehouseCode` | String | Y | 仓库号 |
-| `taskType` | String | Y | 任务类型 |
-| `messageId` | String | Y | 消息 ID（**WMS 幂等键**） |
-| `batchNo` | String | N | 批次号（分批回传） |
-| `isFinished` | Boolean | Y | 是否任务完结信号 |
-| `taskStatus` | String | Y | 当前任务状态 |
-| `operator` | String | N | 厂商侧实际作业人 |
-| `operateTime` | String | N | 厂商侧**实际作业时间**（非传输时间） |
-| `details` | Array | Y | 结果明细 |
-| `details[].lineNo` | Integer | Y | 行号 |
-| `details[].itemCode` | String | Y | 商品号 |
-| `details[].planQty` | Number | Y | 计划数量 |
-| `details[].doneQty` | Number | Y | **本批**完成数量 |
-| `details[].totalDoneQty` | Number | Y | **累计**完成数量 |
-| `details[].shortageQty` | Number | N | 缺货数量 |
-| `details[].carrierCode` | String | N | 载具编码（1 期即料箱码） |
-| `details[].carrierType` | String | N | 载具类型：`TOTE`/`PALLET`/`CAGE`/`BIN`，1 期固定 `TOTE` |
-| `details[].uom` | String | Y | 数量单位：`EA`/`CS`/`PL`，1 期固定 `EA` |
-| `details[].containerCode` | String | N | 容器编码 |
+| `wcsTaskNo` / `sourceTaskNo` / `warehouseCode` | String | Y | 任务定位 |
+| `messageId` | String | Y | 消息 ID（**WMS 幂等键**，取自海柔 `idempotentCode`） |
+| `reportType` | String | Y | `BATCH`（按箱/按容器）/ `FINAL`（按单） |
+| `isFinished` | Boolean | Y | 由 `reportType` 推导，`FINAL`=true |
+| `taskStatus` | String | Y | 当前 WCS 任务状态 |
+| `planTotalQty` / `doneTotalQty` | Number | Y | 计划 / 实际总量（映射 `plan_sku_amount` / `sku_amount` / `pickup_sku_amount`） |
+| `lackFlag` | Boolean | N | 缺发标识（出库场景，映射 `lack_flag`） |
+| `operator` | String | N | 厂商实际作业人（`receiptor` / `picker`） |
+| `operateTime` | String | N | 厂商**实际作业时间**（`completion_time` / `finish_date`） |
+| `details[].lineNo` / `itemCode` | — | Y | 定位行 |
+| `details[].planQty` / `doneQty` / `totalDoneQty` | Number | Y | 计划 / 本批 / 累计完成量 |
+| `details[].carrierCode` / `carrierType` | String | N | 载具编码 / 类型 |
+| `details[].containerCode` | String | N | 出库承接容器 |
 | `details[].lineStatus` | String | Y | 行状态 |
 
-> **`doneQty`（本批）与 `totalDoneQty`（累计）同时给出**，避免 WMS 因消息乱序/重复导致累加错误——这是分批回传场景最容易出问题的地方，请测试同学重点覆盖。
-
-#### I-11 库存不足回传（WCS → WMS）
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `wcsTaskNo` / `sourceTaskNo` / `warehouseCode` | String | Y | 同上 |
-| `messageId` | String | Y | 幂等键 |
-| `batchNo` | String | N | 批次号 |
-| `shortageTime` | String | Y | 缺货发现时间 |
-| `details[].lineNo` / `itemCode` | - | Y | 定位行 |
-| `details[].planQty` | Number | Y | 计划数量 |
-| `details[].availableQty` | Number | Y | 飞箱实际可用数量 |
-| `details[].shortageQty` | Number | Y | 缺货数量 |
+> `doneQty`（本批）与 `totalDoneQty`（累计）**同时给出**，避免 WMS 因消息乱序/重复导致累加错误——测试重点覆盖。
 
 #### I-10 容器分配结果回传（WCS → WMS）
 
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| `wcsTaskNo` / `sourceTaskNo` / `warehouseCode` | String | Y | |
-| `messageId` | String | Y | 幂等键 |
-| `containers[].containerCode` | String | Y | 容器编码 |
-| `containers[].containerType` | String | N | 容器类型（周转箱/笼车…） |
-| `containers[].seqNo` | Integer | N | 容器序号 |
-| `containers[].lineNos` | Array | N | 该容器承接的明细行号 |
-| `containers[].allocateTime` | String | N | 分配时间 |
+| 字段 | 说明 | 海柔来源 |
+|---|---|---|
+| `containers[].containerCode` | 容器编码 | 9 `order_box_no` / 10 `container_list[].container_code` |
+| `containers[].containerStatus` | 1 容器关闭 / 2 容器出库 | 9 `container_status` |
+| `containers[].slotNo` | 格口号 | 10 `seeding_bin_code` |
+| `containers[].wallCode` | 播种墙号 | 10 `wall_code` |
+| `containers[].palletCode` | 码放托盘号 | 10 `pallet_code` |
+| `containers[].workstationNo` / `picker` / `closeTime` | 工作站 / 拣货人 / 关箱时间 | 9 同名字段 |
 
-### 7.4 海柔 → WCS 回传接口通用要求
+#### I-11 库存不足回传（WCS → WMS）
 
-| # | 要求 |
-|---|---|
-| V-1 | 所有回传报文必须携带 **`vendorMsgId`（厂商侧全局唯一消息 ID）**，WCS 据此幂等 |
-| V-2 | 必须携带 **`wcsTaskNo`**（WCS 下发时传给厂商），或 `vendorTaskNo` + `warehouseCode` 组合 |
-| V-3 | 分批回传必须携带 `batchNo` 与 `isFinished` 标识 |
-| V-4 | 必须回传**实际作业时间 `operateTime`**（非传输时间）与**实际作业人 `operator`** |
-| V-5 | WCS 同步返回受理结果；厂商侧对 WCS 返回失败/超时应有重推机制（需与海柔确认） |
-| V-6 | 报文时间统一 `yyyy-MM-dd HH:mm:ss`，时区 `GMT+8` |
-| V-7 | 数量字段统一使用**数值型**，单位为**件**，小数位 ≤ 3 |
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `wcsTaskNo` / `sourceTaskNo` / `warehouseCode` | Y | 任务定位 |
+| `messageId` | Y | 幂等键（海柔 `idempotentCode`） |
+| `businessType` | Y | **少货环节：分配 / 拣选**（海柔 `business_type` 原文） |
+| `details[].itemCode` | Y | 商品编码 |
+| `details[].shortageQty` | Y | 少货数量（海柔 `quantity`） |
+| `details[].planQty` | N | 计划数量（WCS 从任务明细补齐） |
+| `details[].availableQty` | N | **推算值** = `planQty − 累计shortageQty`，海柔未提供实际可用量 |
+| `operator` / `remark` | N | 操作人 / 备注 |
 
-### 7.5 MQ 消息规范（M-01 料箱库存快照）
+### 7.6 MQ 消息规范（M-01 料箱库存快照）
 
-**Topic**：`wcs.tote.inventory.snapshot`
-**Tag**：`{vendorCode}_{warehouseCode}`
-**消息体**：
+**Topic**：`wcs.tote.inventory.snapshot`　**Tag**：`HAIROU_{warehouseCode}`
 
 ```json
 {
@@ -1221,42 +1457,44 @@ traceId：{traceId}
   "warehouseCode": "TZ001",
   "vendorCode": "HAIROU",
   "batchSeq": 3,
-  "totalBatch": 5,
   "isLast": false,
-  "totalCount": 2300,
   "generateTime": "2026-10-12 07:00:00",
   "traceId": "wcs-snapshot-20261012-001",
   "items": [
     {
-      "toteCode": "TOTE00012345",
-      "toteType": "STANDARD",
-      "locationCode": "A-01-03-02",
-      "itemCode": "980012345",
-      "upc": "6901234567892",
-      "qty": 36,
-      "volumeUsage": 0.72,
-      "batchNo": "",
-      "expireDate": "2027-05-01"
+      "containerCode": "TOTE00012345",
+      "skuCode": "980012345",
+      "skuName": "示例商品",
+      "division": 1,
+      "expirationDate": "2027-05-01",
+      "skuQuantity": 36,
+      "frozenQuantity": 0
     }
   ]
 }
 ```
 
-> **快照字段以《飞箱库存快照》文档为准**，上表为示意。数据湖侧的消费幂等键建议为 `snapshotDate + warehouseCode + batchSeq`（需与 OIC/数据湖同学对齐，见 §12 Q15）。
+> `items` 内字段与海柔接口 14 一一对应。`snapshotDate` / `batchSeq` / `isLast` **海柔未提供，当前由 WCS 按接收日期与接收批次生成**；若海柔按 §7.7-R9 补充这些字段，则改为直接透传，可靠性更高。
+> 数据湖侧消费幂等键建议 `snapshotDate + warehouseCode + batchSeq`（需与 OIC/数据湖同学确认，§12.2 Q15）。
 
-### 7.6 接口映射表（WCS 标准模型 ↔ 海柔）
+### 7.7 接口清单核对发现的问题与对接需求
 
-> 该表为**评审时的对齐工作底稿**，需与《台州飞箱（WCS-海柔接口）》逐字段确认后补全。
+> 这 12 项是逐字段核对接口清单后发现的，**需要在评审会上分派给海柔 / WMS / WCS 三方**。R1～R4 会影响 WCS 编码，属阻塞项。
 
-| WCS 标准字段 | 海柔字段 | 转换规则 | 备注 |
-|---|---|---|---|
-| `wcsTaskNo` | 待确认 | 直传 | 作为厂商侧外部单号 |
-| `warehouseCode` | 待确认 | 直传 / 映射 | 若海柔使用自有仓码需在路由表配映射关系 |
-| `taskType` | 待确认 | 枚举映射 | WCS 枚举 → 海柔枚举 |
-| `itemCode` | 待确认 | 直传 | |
-| `planQty` | 待确认 | 直传 | 单位需确认（件/箱） |
-| `operateTime` | 待确认 | 时区/格式转换 | 统一 GMT+8 |
-| … | … | … | **评审时补全** |
+| # | 问题 | 影响 | 责任方 | 建议处理 |
+|---|---|---|---|---|
+| **R1** | ⚠️ **接口 12（周转容器状态查询）方向标注矛盾**：接口列表页写"设备→WHC→WMS"，详情页写"WMS→WHC→海柔"，且入参是 `container_code`、出参 `is_active`，明显是 WMS 发起的查询 | 决定 WCS 提供接口还是调用接口 | 海柔 | 以详情页为准（WMS→WCS→海柔，透传），请海柔更正清单 |
+| **R2** | ⚠️ **出库单取消（接口 8，P0）与主 PRD"移出任务不支持取消"冲突**。移出走出库单，海柔技术上支持取消 | 影响 §6.4/§6.5 取消口径与 WMS 侧按钮 | 产品/WMS | 建议：**WCS 侧实现完整取消能力**（能力就绪），是否对 WMS 开放移出取消由业务定；本版先按"WCS 支持、WMS 不开放"实现 |
+| **R3** | ⚠️ **上架按箱回传（接口 5）是 P2，按单回传（接口 6）才是 P0** | 若 1 期不做接口 5，则上架**没有过程回传**，WMS 只能在整单完结时一次性拿到结果，"部分上架实时感知"落空 | 产品/海柔 | 确认 1 期是否必须要接口 5；若不做，需在 §6.3 明确"上架无过程回传"并同步 WMS |
+| **R4** | ⚠️ **多个枚举值未提供**：`operation_result`（取消结果）成功值、`receipt_status`（异常标识）、上架单 `status`、出库单 `status`、`order_type`、`pick_type`、`sku_level`（商品等级 / 质量状态） | WCS 无法编写状态判定与失败分支 | 海柔 | 评审后 3 个工作日内提供完整枚举表 |
+| **R5** | **字段命名不一致**：① 出库单号在接口 9/10 叫 `out_order_code`，在接口 11 叫 `outbound_order_no`；② `carrier_code` 在出库单头是"承运商编码"，在上架回传里是"承运商编码"，而 WCS 模型里 `carrier_code` 是载具编码 | 易映射错，排查困难 | 海柔/WCS | 请海柔统一为 `out_order_code`；WCS 侧在映射表显式标注，避免同名混淆 |
+| **R6** | **"是否必填"与"海柔必传"冲突**：接口 3 的 `line_no`、`out_batch_code`、`container_code`、`inbound_date` 标必填=否但备注"海柔必传"；接口 1 的 `width` 标非必填但长/高必填；接口 11 的 `operator` 只出现在示例报文、字段表未列 | WCS 校验规则无法确定，可能下发被拒 | 海柔 | 请按"实际校验规则"更新必填标记，WCS 按"海柔必传"从严校验 |
+| **R7** | **时间字段类型不统一**：`completion_time` 在接口 5 是 String、接口 6 是 Number；`cancel_date` 在接口 4 是 Number、接口 8 是 String（备注 `-> cancel_date_str`）；`production_date`/`expiration_date` 字段表写 `yyyy-MM-dd` 但示例 JSON 是 `0` | 序列化必错，联调必返工 | 海柔 | **统一为字符串 `yyyy-MM-dd HH:mm:ss`（日期类 `yyyy-MM-dd`），时区 GMT+8**；WCS 侧 Adapter 做兼容解析并记录告警 |
+| **R8** | **信封字段取值未约定**：`invokeFrom`、`targetSystem`、`appName`、`source`、`version` 的具体取值，以及 `warehouseId`（Number）与 `warehouse_code`（String）的对应关系 | 无法联调 | 海柔/WCS | 海柔提供取值规范与 AppName/AccessToken；`warehouseId` 由 WCS 路由表配置映射（新增字段 `vendor_warehouse_id`） |
+| **R9** | ⚠️ **料箱快照（接口 14）缺 `snapshotDate`、分页字段、总条数** | 无法判断当日快照收齐，无法承接大批量推送，§6.8 的兜底对账失去依据 | 海柔 | 请补充 `snapshot_date`、`current_page`/`page_size`/`total_num`；在补充前，WCS 按接收日期生成 `snapshotDate`，并以"07:30 前是否收到过推送"做弱对账 |
+| **R10** | **鉴权说明矛盾**：总表写"签名认证/AccessToken"，各接口详情页写"鉴权机制：无" | 安全口径不明 | 海柔 | 确认生产环境是否强制鉴权；WCS 侧按"必须鉴权"实现 |
+| **R11** | **海柔接口路径风格不一致**：`/WES/OPEN/...`（商品、上架、出库下发）、`/wrm/outbound/cancel`（出库取消）、`/plugin/stock/query/skuLot`（库存查询）；且接口 5/6/9/10/11/13/14 的地址栏为空 | WCS 配置项与联调准备 | 海柔/WCS | 海柔侧路径按实际配置到路由表即可；**海柔→WCS 的 7 个接口地址由 WCS 定义（§7.3③），需回填到清单 WHC 列** |
+| **R12** | **接口 2（商品信息拉取）明细页为空白**，P2 待定 | 1 期范围 | 产品/海柔 | 1 期不做，2 期再定义 |
 
 ---
 
@@ -1292,8 +1530,8 @@ traceId：{traceId}
 |---|---|---|---|
 | WMS → WCS 任务下发 | `sourceSystem + sourceTaskNo + taskType` | **WCS 保障** | 命中已存在任务，返回原 `wcsTaskNo` + `duplicated=true`，不重复建单 |
 | WMS → WCS 任务取消 | `wcsTaskNo` + 目标状态 | **WCS 保障** | 已 `CANCELLED` 直接返回成功 |
-| WCS → 海柔 下发/取消 | `wcsTaskNo` | **海柔保障** | 需海柔确认重复下发返回原任务而非报错 |
-| 海柔 → WCS 结果回传 | `vendorCode + vendorMsgId` | **WCS 保障** | 唯一索引拦截，重复直接返回成功不处理 |
+| WCS → 海柔 下发/取消 | 海柔信封的 `idempotentCode`（WCS 传 `wcsTaskNo`，取消传 `wcsTaskNo:CANCEL`） | **海柔保障** | 海柔全接口已内置幂等号，需确认重复下发返回原任务而非报错 |
+| 海柔 → WCS 结果回传 | `vendorCode + idempotentCode` | **WCS 保障** | 唯一索引拦截，重复直接返回成功不处理 |
 | WCS → WMS 结果回传 | `messageId` | **WMS 保障** | WCS 保证同一 `messageId` 内容不变 |
 | WCS → MQ 快照 | `snapshotDate + warehouseCode + batchSeq` | **数据湖保障** | WCS 保证同批次内容一致 |
 
@@ -1380,9 +1618,9 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 
 | # | 场景 | 预期结果 |
 |---|---|---|
-| T08 | 上架结果分 3 批回传 | 每批实时转发 WMS；`totalDoneQty` 累加正确；终态前主表 `EXECUTING` |
-| T09 | 部分上架（完成 60%） | 终态 `PARTIAL_DONE`；飞书告警 1 条；WMS 收到差异量 |
-| T10 | 部分拣货 | 终态 `PARTIAL_DONE`；飞书告警 |
+| T08 | 上架按箱回传（海柔5）分 3 批 | 每批实时转发 WMS；`totalDoneQty` 累加正确；终态前主表 `EXECUTING` |
+| T09 | 上架按单回传 `sku_amount` < `plan_sku_amount` | 终态 `PARTIAL_DONE`；飞书告警 1 条；WMS 收到差异量 |
+| T10 | 拣货按单回传 `lack_flag=1` 或 `pickup_sku_amount` < `plan_sku_amount` | 终态 `PARTIAL_DONE`；飞书告警 |
 | T11 | 分批回传消息**乱序**到达 | `totalDoneQty` 以最新累计值为准，不出现回退 |
 | T12 | 零完成 | 终态 `FAILED` |
 | T13 | 取消部分上架任务 | 已上架行数量保留，未上架行 `CANCELLED`，主状态 `CANCELLED` |
@@ -1393,21 +1631,21 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 |---|---|---|
 | T14 | 重复下发同一 `sourceTaskNo` | 只建 1 条任务；两次返回同一 `wcsTaskNo`，第二次 `duplicated=true` |
 | T15 | 并发下发同一 `sourceTaskNo`（10 线程） | 唯一索引拦截；只建 1 条；无异常抛给 WMS |
-| T16 | 厂商回传重复 `vendorMsgId` | 只处理一次；数量不重复累加；不重复告警 |
+| T16 | 海柔重复推送同一 `idempotentCode` | 只处理一次；数量不重复累加；不重复告警 |
 | T17 | 厂商下发接口断网 | **`wcs_dispatch_record` 共 4 行**（首次 + 重试 3 次，间隔≈1min），`dispatch_count=4`；状态 `DISPATCH_FAILED`；飞书告警 1 条 |
 | T18 | 回传 WMS 失败 | 共 4 次调用；`forward_count=4`，`forward_status=FAILED`；飞书告警；后台可重推 |
 | T19 | 取消时厂商返回失败 | 状态**回滚**至取消前；WMS 收到失败原因；飞书告警 |
 | T20 | 取消时厂商断网 | 共 4 次调用后返回失败；状态回滚；无 `CANCELLING` 残留 |
 | T21 | 对已 `SUCCESS` 任务发起取消 | 返回 `WCS_TASK_STATUS_ILLEGAL` |
-| T22 | 对移出/拣货任务发起取消 | 返回 `WCS_CANCEL_NOT_SUPPORT` |
+| T22 | 对移出任务发起取消 | 返回 `WCS_CANCEL_NOT_SUPPORT`（WMS 侧不开放）；WCS 内部取消能力另行验证 |
 | T23 | 终态任务收到厂商回传 | 丢弃 + WARN 日志；状态不变；不报错给厂商 |
 | T24 | 仓库号未配置路由 | 返回 `WCS_ROUTE_NOT_FOUND`；无任务落库；报文流水有记录 |
 | T25 | 明细为空 / `planQty=0` / 负数 | 返回 `WCS_PARAM_INVALID`；不落库 |
 | T26 | 回传数量 > 计划数量 | 按计划量封顶；WARN + 飞书告警 |
 | T27 | 签名错误 / 时间戳过期 / nonce 重放 | 返回 `WCS_AUTH_FAILED`；三种子场景分别验证 |
-| T28 | 库存不足分批回传 | `shortage_qty` 累加正确；每批转发 WMS；告警按 5 分钟聚合 |
-| T29 | 料箱快照缺页 | 07:30 对账告警；后台可查看缺页明细 |
-| T30 | 料箱快照重复推送同一页 | WCS 幂等；数据湖不重复 |
+| T28 | 预占拣货异常上报（海柔11）多次上报 | `shortage_qty` 累加正确；每次转发 WMS 且带 `business_type`；告警按 5 分钟聚合 |
+| T29 | 当日未收到料箱快照 | 07:30 弱对账告警触发；后台可查看接收记录 |
+| T30 | 料箱快照重复推送同一批 | WCS 按 `idempotentCode` 幂等；数据湖不重复 |
 | T31 | 大报文（1000 行明细）下发 | 正常受理；报文流水超 64KB 截断并标记 |
 | T32 | 告警风暴（1 分钟 50 条同类告警） | 熔断为汇总告警；不刷屏 |
 
@@ -1419,6 +1657,18 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | T34 | 单日 10 万条快照 | 10 分钟内完成接收 + MQ 投递 |
 | T35 | 任务表 1000 万行下的查询 | 后台按单号查询 ≤ 1s |
 
+### 10.5 接口对齐场景（联调必测）
+
+| # | 场景 | 预期结果 |
+|---|---|---|
+| T36 | 移出任务下发 | 海柔侧收到 `outbound_order_type=MOVE`；拣货任务收到 `SALE` |
+| T37 | 补货任务下发 | 海柔侧收到 `type=4`（补货入库单），`receipt_code=wcsTaskNo`，`orig_note=WMS 补货通知单号`且在海柔界面可见 |
+| T38 | 信封字段 | `warehouseId` 按路由表映射正确；`owner_code`、`idempotentCode`、`invokeFrom`、`targetSystem` 均非空 |
+| T39 | 时间字段兼容 | `completion_time` / `cancel_date` 收到 String 与 Number 两种类型均能正确解析（§7.7-R7 兼容逻辑） |
+| T40 | 库存查询分页 | `current_page` 从 1 开始；`total_num` 正确；跨页无重复无遗漏 |
+| T41 | 上架/出库取消 | 海柔 `operation_result` 成功与失败两种取值分别验证；失败时 `error_message` 原文透传 WMS |
+| T42 | 海柔响应 `traceId` | 落 `wcs_message_log.vendor_trace_id`，可按海柔 traceId 反查 WCS 任务 |
+
 ---
 
 ## 11. 上线与灰度方案
@@ -1426,7 +1676,7 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | 阶段 | 内容 | 时间 |
 |---|---|---|
 | 需求评审 | 本文评审 | 2026-08-12 |
-| 接口对齐 | 与海柔逐字段对齐《WCS-海柔接口》；与 WMS 对齐 I-01～I-12 契约 | 评审后 1 周内 |
+| 接口对齐 | ✅ 海柔侧已完成（v1.2，§7.4 映射表）；剩余 §7.7 的 12 项问题需海柔/WMS 答复；与 WMS 对齐 I-01～I-13 契约 | 评审后 1 周内 |
 | 开发 | WCS 开发 | 至 2026-09-22 |
 | 提测 | 联调 + 系统测试 | 2026-09-22 |
 | 联调 | WMS ↔ WCS ↔ 海柔沙箱联调 | 提测同步进行 |
@@ -1436,12 +1686,12 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 
 | 项 | 内容 |
 |---|---|
-| 厂商路由配置 | 台州门店号 → `HAIROU`，含 endpoint、超时、WMS 回调地址 |
-| 鉴权凭证 | WMS-库内 / WMS-出库 / 海柔 各一套 AK/SK |
+| 厂商路由配置 | 台州门店号 → `HAIROU`，含 endpoint、超时、WMS 回调地址、**`vendor_warehouse_id`（海柔 warehouseId）、默认 `owner_code`** |
+| 鉴权凭证 | WMS-库内 / WMS-出库 各一套 AK/SK（WCS 对内）；**海柔分配给 WCS 的 AppName + AccessToken + 签名密钥（WCS 对外）** |
 | 飞书告警 | 告警群 Webhook 配置，告警开关（支持按场景开关） |
 | MQ | Topic `wcs.tote.inventory.snapshot` 创建，数据湖侧订阅 |
 | 定时任务 | 07:30 快照对账任务；重试扫描任务 |
-| 枚举字典 | 任务类型 / 状态 / 厂商 / 作业形态 |
+| 枚举字典 | 任务类型 / 状态 / 厂商 / 作业形态；**海柔枚举：入库类型 type、`outbound_order_type`、`operation_result`、`container_status`、`business_type`（待海柔提供，§7.7-R4）** |
 
 **灰度与回滚**：
 
@@ -1464,7 +1714,8 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | C3 | 重试次数口径 | **首次调用 + 重试 3 次 = 共 4 次调用**，间隔 1 分钟 | §6.10.1 |
 | C4 | 超时兜底 | 1 期**不做系统级自动超时告警**，改为**人工兜底**；运维后台**纳入 1 期 P0**，必须支持任务查询与人工重推 | §2.4 N1、§9 |
 | C5 | WMS 回传接口归属 | **WMS 按 WCS 定义的标准契约实现**（I-08～I-12），不由 WCS 适配 WMS 存量接口 | §7.1 ② |
-| C6 | 载具与单位泛化 | 明细行 `tote_code` 泛化为 `carrier_code` + `carrier_type`；新增 `uom` 单位字段（1 期固定 `TOTE` + `EA`） | §4.5、§5.3.2、§7.3 |
+| C6 | 载具与单位泛化 | 明细行 `tote_code` 泛化为 `carrier_code` + `carrier_type`；新增 `uom` 单位字段（1 期固定 `TOTE` + `EA`） | §4.5、§5.3.2、§7.5 |
+| C7 | **海柔接口清单已到位并完成核对** | 15 个接口全部对齐，字段映射表（§7.4，11 张）补全；核对发现 12 项对接问题另见 §7.7 | §7 全节 |
 
 ### 12.2 仍待确认（评审会上明确责任人与结论）
 
@@ -1472,15 +1723,15 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 
 | # | 问题 | 涉及方 | 产品建议 | 状态 |
 |---|---|---|---|---|
-| Q2 | ⚠️ **《台州飞箱（WCS-海柔接口）》仍未拿到**（附件未成功送达），海柔侧字段与接口粒度（任务创建是统一接口还是按类型分接口）无法对齐 | 产品/海柔/研发 | **请重新提供该文档**；拿到后 3 个工作日内补全 §7.6 字段映射表 | ⚠️ 待提供 |
-| Q3 | 移出任务是否绝对不支持取消？WCS 直接拒绝是否符合业务预期 | 产品/WMS | 按主 PRD 直接拒绝 | 待确认 |
-| Q4 | 拣货出库任务 1 期是否需要支持取消？ | 产品/WMS-出库 | 1 期不做 | 待确认 |
-| Q5 | 容器类型枚举、容器编码规则由谁定义与维护？WMS 是否需要预先知道容器主数据 | WMS-出库/海柔 | 由海柔提供枚举，WCS 直传 | 待确认 |
+| ~~Q2~~ | ~~《台州飞箱（WCS-海柔接口）》未拿到~~ | — | — | ✅ **已关闭**（附件已收到，§7 已按清单重写，遗留问题转入 §7.7 R1～R12） |
+| Q3 | 移出任务是否绝对不支持取消？**海柔出库单取消（接口 8）是 P0，技术上可取消**，与主 PRD「不支持取消」冲突 | 产品/WMS | WCS 实现完整能力、对 WMS 暂不开放；是否放开由业务定，同 §7.7-R2 | 待确认 |
+| Q4 | 拣货出库任务是否对 WMS 开放取消？海柔接口 8 已支持 | 产品/WMS-出库 | 建议 1 期开放（海柔能力已具备，WCS 增量成本低） | 待确认 |
+| Q5 | 容器类型枚举与编码规则：海柔接口 13 会上报 `container_type`（容器规格），是否即为容器主数据来源？WMS 是否需要预先落库 | WMS-出库/海柔 | 建议以接口 13 为容器规格主数据来源，1 期透传给 WMS | 待确认 |
 | Q7 | 部分上架/部分拣货时，WCS 只回传"计划量/实际量/差异量"，**库存移回 SF 由 WMS 处理**——确认该分工 | WMS-库内 | 按此分工 | 待确认 |
 | Q8 | 多仓店多 WMS 场景下，回传地址如何管理？统一一个 WMS 域名，还是按仓配置回调地址？ | 研发/WMS | 按仓配置（`wcs_vendor_route.wms_callback_url`） | 待确认 |
 | Q9 | 主 PRD 要求"回传 MyClub 对应操作账号及真实操作时间"。1 期 WCS 是否需要透传厂商作业人？账号体系是否需要对接？ | 产品/WMS | 1 期只透传 `operator`+`operateTime` 字段，不做账号体系对接 | 待确认 |
 | Q10 | 商品主数据推送是全量还是增量？推送失败后由谁负责重推？ | WMS-库内 | 由 WMS 决定并负责重推，WCS 不做补偿 | 待确认 |
-| Q11 | 库存查询是否允许"全量查询"（不传商品号）？并发/频率上限是多少？ | WMS/海柔 | 建议必须传商品号，单次 ≤ 200 个；按门店限流 10 QPS | 待确认 |
+| ~~Q11~~ | ~~库存查询是否允许全量查询~~ | — | — | ✅ **已关闭**：海柔接口 15 要求 `sku_list` 必填且必须分页，不支持全量查询 |
 | Q12 | ⚠️ 鉴权方案：是否有公司统一网关/内部服务鉴权可复用？飞书告警群 Webhook 由谁提供？ | 研发/运维 | 优先复用统一体系；Webhook 请运维在评审后 3 天内提供 | 待确认 |
 | Q15 | 数据湖侧 MQ 消费的幂等键与收齐判定逻辑，需与 OIC/数据湖同学对齐 | 数据湖 | 建议 `snapshotDate + warehouseCode + batchSeq`，`isLast` 判收齐 | 待确认 |
 | Q16 | 海柔沙箱/测试环境何时可用？联调窗口如何安排？ | 项目/海柔 | 建议 09-01 前提供 | 待确认 |
@@ -1488,6 +1739,10 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | Q18 | WCS 是否需要对接公司统一监控/日志平台？有无既定中间件选型（MQ 用 Kafka 还是 RocketMQ） | 研发 | 按团队现有基建 | 待确认 |
 | Q19 | 运维后台的使用角色与权限范围（谁能重推、谁能关闭任务）？是否复用现有后台权限体系？ | 产品/研发/运维 | 建议：查询开放给现场主管；重推/关闭限运维与研发值班 | 待确认 |
 | Q20 | 人工巡检 SOP（§9）由谁执行、纳入谁的值班职责？夜间作业时段每 2 小时巡检一次是否可落地？ | 运营/运维 | 需在上线前明确到人 | 待确认 |
+| Q21 | 周转容器状态查询（接口 12）与商品容器规格装箱件数（接口 13）海柔标 P2，**WCS 侧是纯透传、成本很低**，是否一并纳入 1 期？ | 产品/WMS | 建议纳入 1 期（已按 P1 写入 §2.3 W12/W13） | 待确认 |
+| Q22 | 出库单下发的 `inbound_warehouse_code`（收货仓库编码/云仓）必填，门店移出场景该字段传什么？ | WMS-出库 | 需明确取值规则 | 待确认 |
+| Q23 | `owner_code`（货主）取值规则：由 WMS 每单传入，还是按仓库在路由表配置固定值？ | WMS/产品 | 建议 WMS 传入、路由表配默认值兜底 | 待确认 |
+| Q24 | 海柔接口 14 的 `division`（商品分类）是 Number，而商品同步接口 1 的 `division` 是 String 枚举（DG1/DG2…），两者是否同一含义？ | 海柔/数据湖 | 需海柔澄清，否则数据湖侧口径不一致 | 待确认 |
 
 ---
 
@@ -1506,6 +1761,11 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | `carrierType` | `TOTE` 料箱、`PALLET` 托盘、`CAGE` 笼车、`BIN` 周转箱（1 期固定 `TOTE`） |
 | `uom` | `EA` 件、`CS` 箱、`PL` 托（1 期固定 `EA`） |
 | `resultType` | `ACCEPT`、`EXECUTE`、`SHORTAGE`、`CONTAINER`、`CANCEL`、`FINISH` |
+| 海柔 `outbound_order_type` | `SALE` 出库拣货、`MOVE` 移库下架 |
+| 海柔 入库类型 `type` | 0=inbound1、1=inbound2、2=returnBack 返仓、3=normal 普通、**4=replenishment 补货（WCS 固定传 4）** |
+| 海柔 `container_status` | 1 容器关闭、2 容器出库 |
+| 海柔 `outbound_pick_type` | 1 单品、2 非单品 |
+| 海柔 `business_type` | 少货环节：分配 / 拣选 |
 | `direction` | `WMS_IN`、`VENDOR_OUT`、`VENDOR_IN`、`WMS_OUT`、`MQ_OUT` |
 
 ### 13.2 配置项清单
@@ -1524,6 +1784,11 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | `wcs.snapshot.reconcile.cron` | `0 30 7 * * ?` | 快照对账时间（每日 07:30） |
 | `wcs.messagelog.retainDays` | 90 | 报文流水保留天数 |
 | `wcs.inventory.query.qps` | 10 | 库存查询按门店限流 |
+| `wcs.vendor.hairou.appName` | - | 海柔分配的 AppName |
+| `wcs.vendor.hairou.accessToken` | - | 海柔 AccessToken（加密存储） |
+| `wcs.vendor.hairou.invokeFrom` | `WCS` | 信封 `invokeFrom` 取值（待海柔确认） |
+| `wcs.vendor.hairou.targetSystem` | - | 信封 `targetSystem` 取值（待海柔确认） |
+| `wcs.snapshot.count.deviationRate` | 0.3 | 快照条数环比偏差告警阈值 |
 | `wcs.auth.timestamp.expire` | 300s | 签名时间戳有效期 |
 
 ### 13.3 参考文档
@@ -1531,7 +1796,7 @@ WMS 与 WCS 是两个独立系统，**必须做接口鉴权**。
 | 文档 | 说明 |
 |---|---|
 | 《【项目】【P0】台州海柔飞箱项目》v1.1 | 主 PRD |
-| 《台州飞箱（WCS-海柔接口）》 | **海柔接口清单，字段最终准绳** |
+| 《台州飞箱（WCS-海柔接口）》 | **海柔接口清单（2026-09-22 联通性测试版），已于 v1.2 完成逐字段核对，字段最终准绳** |
 | 《海柔-WHC-FLUX接口文档 - Alex-Copy 0727》 | 海柔接口说明 |
 | 《飞箱库存快照》 | 料箱快照字段定义 |
 | 《【202505】My Club创新类项目-接入自动化拣货设备飞箱》 | 飞箱 v1.0 PRD |

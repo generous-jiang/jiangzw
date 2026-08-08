@@ -3,20 +3,18 @@ sequenceDiagram
     participant WCS as WCS
     participant WES as 海柔 WES
     participant FS as 飞书告警
-
-    WMS->>WCS: 1. 拣货出库任务下发 (task/pick/create)
+    WMS->>WCS: 1. 拣货出库任务下发 (I-05)
     WCS-->>WMS: 2. 同步受理 + wcsTaskNo
-    WCS->>WES: 3. 下发任务
-    WES-->>WCS: 4. 受理回执
-    WCS->>WMS: 5. 转发受理结果
-    WES-->>WCS: 6. 容器分配结果 (task/container)
-    WCS->>WMS: 7. 转发容器分配结果（WMS 据此完成作业）
-    opt 出库前库存不足
-        WES-->>WCS: 8. 库存不足回传（分批，batchNo）
-        WCS->>WMS: 9. 转发缺货明细
-        WCS->>FS: 10. 告警：飞箱库存不足
+    WCS->>WES: 3. OUTBOUND_ORDER_CREATE (outbound_order_type=SALE)
+    WES-->>WCS: 4. 同步响应受理成功
+    WCS->>WMS: 5. 受理结果回传 (I-08)
+    opt 预占/拣选缺货 (海柔11)
+        WES-->>WCS: 6. 预占拣货异常上报 business_type=分配/拣选
+        WCS->>WMS: 7. 库存不足回传 (I-11)
+        WCS->>FS: 8. 告警：飞箱库存不足
     end
-    WES-->>WCS: 11. 拣货结果回传（可分批）
-    WCS->>WMS: 12. 转发拣货结果
-    WES-->>WCS: 13. 任务完结
-    WCS->>WMS: 14. 回传终态 SUCCESS / PARTIAL_DONE
+    WES-->>WCS: 9. 出库单按容器回传 (海柔9)
+    WCS->>WMS: 10. 容器分配结果 (I-10) + 拣货结果 (I-09)
+    WES-->>WCS: 11. 拣货完成回传按单 (海柔10)
+    WCS->>WCS: 12. 按 plan/pickup_sku_amount + lack_flag 判终态
+    WCS->>WMS: 13. 回传终态 SUCCESS / PARTIAL_DONE (部分拣货另发告警)

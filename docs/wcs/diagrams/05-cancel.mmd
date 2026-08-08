@@ -1,13 +1,17 @@
 flowchart TD
-    A[WMS 发起取消] --> B{WCS 任务是否存在}
-    B -- 否 --> C[返回 TASK_NOT_FOUND]
-    B -- 是 --> D{当前状态}
-    D -- SUCCESS/FAILED/CANCELLED/CLOSED --> E[返回取消失败: 任务已终态]
-    D -- INIT 未下发 --> F[本地直接置 CANCELLED] --> G[同步返回取消成功]
-    D -- DISPATCHED/EXECUTING --> H[置 CANCELLING, 记录原状态]
-    H --> I[同步调用厂商取消接口]
-    I -- 厂商成功 --> J[置 CANCELLED] --> K[同步返回 WMS 取消成功]
-    I -- 厂商业务失败 --> L[状态回滚到原状态] --> M[同步返回 WMS 取消失败+原因] --> N[飞书告警]
-    I -- 网络异常/超时 --> O[1min间隔重试3次<br/>含首次共4次]
-    O -- 重试成功 --> J
-    O -- 3次失败 --> P[状态回滚到原状态] --> Q[返回 WMS 取消失败] --> N
+    A["WMS 发起取消 (I-06)"] --> B{"WCS 任务是否存在"}
+    B -- 否 --> C["返回 TASK_NOT_FOUND"]
+    B -- 是 --> D{"当前状态"}
+    D -- "SUCCESS/FAILED/CANCELLED/CLOSED" --> E["返回取消失败：任务已终态"]
+    D -- "INIT 未下发" --> F["本地直接置 CANCELLED"] --> G["同步返回取消成功"]
+    D -- "DISPATCHED/EXECUTING" --> H["置 CANCELLING，记录原状态"]
+    H --> T{"task_type"}
+    T -- "INBOUND_PUTAWAY" --> I1["海柔4 ORDER_INBOUND_CANCEL"]
+    T -- "OUTBOUND_PICK / MOVE_OUT" --> I2["海柔8 /wrm/outbound/cancel"]
+    I1 --> R{"operation_result"}
+    I2 --> R
+    R -- 取消成功 --> J["置 CANCELLED"] --> K["同步返回 WMS 取消成功"]
+    R -- 业务失败 --> L["状态回滚到原状态"] --> M["返回失败 + error_message 原文"] --> N["飞书告警"]
+    R -- "网络异常/超时" --> O["1min间隔重试3次<br/>含首次共4次"]
+    O -- 成功 --> J
+    O -- 4次均失败 --> P["状态回滚到原状态"] --> Q["返回 WMS 取消失败"] --> N

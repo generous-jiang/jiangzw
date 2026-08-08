@@ -1,0 +1,25 @@
+stateDiagram-v2
+    direction TB
+    [*] --> INIT: WMS下发 WCS受理落库
+    INIT --> DISPATCHING: 触发下发
+    DISPATCHING --> DISPATCHING: 重试
+    DISPATCHING --> DISPATCHED: 厂商ACK成功
+    DISPATCHING --> DISPATCH_FAILED: 重试3次仍失败 告警
+    DISPATCH_FAILED --> DISPATCHING: 人工重推
+    DISPATCH_FAILED --> CLOSED: 人工关闭
+    DISPATCHED --> EXECUTING: 厂商开始作业
+    DISPATCHED --> FAILED: 厂商拒绝受理
+    EXECUTING --> SUCCESS: 完结且全量完成
+    EXECUTING --> PARTIAL_DONE: 完结但部分完成 告警
+    EXECUTING --> FAILED: 厂商回传执行失败
+    INIT --> CANCELLING: WMS取消
+    DISPATCHED --> CANCELLING: WMS取消
+    EXECUTING --> CANCELLING: WMS取消
+    CANCELLING --> CANCELLED: 厂商取消成功
+    CANCELLING --> DISPATCHED: 取消失败状态回滚 告警
+    CANCELLING --> EXECUTING: 取消失败状态回滚 告警
+    SUCCESS --> [*]
+    PARTIAL_DONE --> [*]
+    FAILED --> [*]
+    CANCELLED --> [*]
+    CLOSED --> [*]

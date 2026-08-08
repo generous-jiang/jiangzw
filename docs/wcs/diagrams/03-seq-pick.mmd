@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant WMS as WMS-出库
+    participant WCS as WCS
+    participant WES as 海柔 WES
+    participant FS as 飞书告警
+    WMS->>WCS: 1. 拣货出库任务下发
+    WCS-->>WMS: 2. 同步受理 + wcsTaskNo
+    WCS->>WES: 3. 下发任务
+    WES-->>WCS: 4. 受理回执
+    WCS->>WMS: 5. 转发受理结果
+    WES-->>WCS: 6. 容器分配结果
+    WCS->>WMS: 7. 转发容器分配结果
+    opt 出库前库存不足
+        WES-->>WCS: 8. 库存不足回传（分批 batchNo）
+        WCS->>WMS: 9. 转发缺货明细
+        WCS->>FS: 10. 告警：飞箱库存不足
+    end
+    WES-->>WCS: 11. 拣货结果回传（可分批）
+    WCS->>WMS: 12. 转发拣货结果
+    WES-->>WCS: 13. 任务完结
+    WCS->>WMS: 14. 回传终态 SUCCESS / PARTIAL_DONE

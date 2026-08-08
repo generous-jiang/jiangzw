@@ -1,0 +1,30 @@
+sequenceDiagram
+    participant WMS as WMS-库内
+    participant WCS as WCS
+    participant WES as 海柔 WES
+    participant FS as 飞书告警
+    WMS->>WCS: 1. 补货上架任务下发
+    WCS->>WCS: 2. 鉴权→幂等→校验→落库(INIT)
+    WCS-->>WMS: 3. 同步返回受理成功 + wcsTaskNo
+    WCS->>WES: 4. 异步下发任务（重试 1min×3）
+    alt 下发成功
+        WES-->>WCS: 5. 同步 ACK
+        WCS->>WCS: 6. 状态 → DISPATCHED
+    else 3次下发均失败
+        WCS->>WCS: 状态 → DISPATCH_FAILED
+        WCS->>FS: 告警：指令下发失败
+        WCS->>WMS: 回传下发失败
+    end
+    WES-->>WCS: 7. 任务受理回执
+    WCS->>WMS: 8. 转发受理结果
+    WES-->>WCS: 9. 上架结果回传（可分批 batchNo）
+    WCS->>WCS: 10. 明细累加 → EXECUTING
+    WCS->>WMS: 11. 每批实时转发上架结果
+    WES-->>WCS: 12. 任务完结信号 isFinished=true
+    alt 全部上架
+        WCS->>WCS: 状态 → SUCCESS
+    else 部分上架
+        WCS->>WCS: 状态 → PARTIAL_DONE
+        WCS->>FS: 告警：补货部分上架
+    end
+    WCS->>WMS: 13. 回传终态（WMS据此将未上架库存移回SF）
